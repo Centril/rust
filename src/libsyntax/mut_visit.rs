@@ -1100,6 +1100,10 @@ pub fn noop_visit_expr<T: MutVisitor>(Expr { node, id, span, attrs }: &mut Expr,
             vis.visit_ty(ty);
         }
         ExprKind::AddrOf(_m, ohs) => vis.visit_expr(ohs),
+        ExprKind::Let(pats, expr) => {
+            visit_vec(pats, |pat| vis.visit_pat(pat));
+            vis.visit_expr(expr);
+        }
         ExprKind::If(cond, tr, fl) => {
             vis.visit_expr(cond);
             vis.visit_block(tr);
@@ -1340,4 +1344,3 @@ mod tests {
         })
     }
 }
-

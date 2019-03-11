@@ -3795,6 +3795,58 @@ impl<'a> LoweringContext<'a> {
         })
     }
 
+    #[allow(warnings)] // TODO(let_chains): REMOVE
+    fn lower_if_cond(
+        &mut self,
+        then: P<hir::Expr>,
+        contains_else_clause: bool,
+        span: Span,
+        cond: &Expr,
+        next: Option<&Expr>,
+    ) -> hir::ExprKind {
+        match &cond.node {
+            // TODO(let_chains): unconditionally handle `next`.
+
+            ExprKind::Binary(Spanned { node: BinOpKind::And, .. }, lhs, rhs) => {
+                self.lower_if_cond(then, contains_else_clause, span, lhs, Some(&*rhs))
+            }
+            ExprKind::Paren(expr) => {
+                self.lower_if_cond(then, contains_else_clause, span, expr, next)
+            }
+            ExprKind::Let(pats, expr) => {
+                let then = if let Some(next) = next {
+                    let kind = self.lower_if_cond(then, contains_else_clause, span, next, None);
+                    P(self.expr(span, kind, ThinVec::new()))
+                } else {
+                    then
+                };
+
+                // `pats => then`
+                let pats = pats.iter().map(|pat| self.lower_pat(pat)).collect();
+                let pats = self.arm(pats, then);
+
+                // `_ => ()`
+                let wc_pat = self.pat_wild(span);
+                let wc_body = self.expr_tuple(span, hir_vec![]);
+                let wc = self.arm(hir_vec![wc_pat], wc_body);
+
+                let scrutinee = P(self.lower_expr(expr));
+                let desugar = hir::MatchSource::IfLetDesugar { contains_else_clause };
+                hir::ExprKind::Match(scrutinee, vec![pats, wc].into(), desugar)
+            }
+            expr => {
+                let then = if let Some(next) = next {
+                    let kind = self.lower_if_cond(then, contains_else_clause, span, next, None);
+                    P(self.expr(span, kind, ThinVec::new()))
+                } else {
+                    then
+                };
+                hir::ExprKind::If(P(self.lower_expr(cond)), then, None)
+            },
+        }
+    }
+
+    #[allow(warnings)] // TODO(let_chains): REMOVE
     fn lower_expr(&mut self, e: &Expr) -> hir::Expr {
         let kind = match e.node {
             ExprKind::Box(ref inner) => hir::ExprKind::Box(P(self.lower_expr(inner))),
@@ -3855,6 +3907,66 @@ impl<'a> LoweringContext<'a> {
                 let ohs = P(self.lower_expr(ohs));
                 hir::ExprKind::AddrOf(m, ohs)
             }
+            ExprKind::Let(..) => {
+                unimplemented!() // TODO(let_chains)
+            }
+            ExprKind::If(ref cond, ref then, ref else_opt) => {
+                // Lower the `then` body:
+                let then = self.lower_block(then, false);
+                let then = P(self.expr_block(then, ThinVec::new()));
+
+                let (then, hir_id, else_opt) = match else_opt {
+                    None => (then, None, None),
+                    // Since we have an `else` block, we need to create a
+                    // labeled block to break to on when the chain of conditions succeed.
+                    // The `then` is then wrapped in `break 'label then`.
+                    // In abstract terms:
+                    //
+                    // ```
+                    // 'label: {
+                    //     if is_success(cond) { break 'label then }
+                    //     els
+                    // }
+                    // ```
+                    Some(els) => {
+                        // The wrapping block we break to on success:
+                        let hir_id = self.next_id().hir_id;
+
+                        // Wrap `then` in a labeled break expression:
+                        let dest = hir::Destination { label: None, target_id: Ok(hir_id) };
+                        let kind = hir::ExprKind::Break(dest, Some(then));
+                        let then = P(self.expr(e.span, kind, ThinVec::new()));
+
+                        // Lower on-else body:
+                        let els = P(self.lower_expr(&els));
+
+                        (then, Some(hir_id), Some(els))
+                    }
+                };
+
+                // Lower `cond` by folding `then` into it:
+                let cond = self.lower_if_cond(then, else_opt.is_some(), e.span, cond, None);
+
+                match hir_id {
+                    None => cond,
+                    Some(hir_id) => {
+                        // Wrap the folded cond+then into a statment expression:
+                        let cond = P(self.expr(e.span, cond, ThinVec::new()));
+                        let stmts = hir_vec![self.stmt_expr(e.span, cond)];
+                        // And now wrap the above + on-else-block into a labeled block:
+                        let block = hir::Block {
+                            rules: hir::DefaultBlock,
+                            span: e.span,
+                            hir_id,
+                            stmts,
+                            targeted_by_break: true,
+                            expr: else_opt,
+                        };
+                        hir::ExprKind::Block(P(block), None)
+                    }
+                }
+            }
+            /*
             // More complicated than you might expect because the else branch
             // might be `if let`.
             ExprKind::If(ref cond, ref blk, ref else_opt) => {
@@ -3884,6 +3996,7 @@ impl<'a> LoweringContext<'a> {
 
                 hir::ExprKind::If(P(self.lower_expr(cond)), P(then_expr), else_opt)
             }
+            */
             ExprKind::While(ref cond, ref body, opt_label) => self.with_loop_scope(e.id, |this| {
                 hir::ExprKind::While(
                     this.with_loop_condition_scope(|this| P(this.lower_expr(cond))),
@@ -4400,12 +4513,7 @@ impl<'a> LoweringContext<'a> {
                         ThinVec::new(),
                     ))
                 };
-                let LoweredNodeId { node_id: _, hir_id } = self.next_id();
-                let match_stmt = hir::Stmt {
-                    hir_id,
-                    node: hir::StmtKind::Expr(match_expr),
-                    span: head_sp,
-                };
+                let match_stmt = self.stmt_expr(head_sp, match_expr);
 
                 let next_expr = P(self.expr_ident(head_sp, next_ident, next_pat_nid));
 
@@ -4428,12 +4536,7 @@ impl<'a> LoweringContext<'a> {
 
                 let body_block = self.with_loop_scope(e.id, |this| this.lower_block(body, false));
                 let body_expr = P(self.expr_block(body_block, ThinVec::new()));
-                let LoweredNodeId { node_id: _, hir_id } = self.next_id();
-                let body_stmt = hir::Stmt {
-                    hir_id,
-                    node: hir::StmtKind::Expr(body_expr),
-                    span: body.span,
-                };
+                let body_stmt = self.stmt_expr(body.span, body_expr);
 
                 let loop_block = P(self.block_all(
                     e.span,
@@ -4867,6 +4970,15 @@ impl<'a> LoweringContext<'a> {
             node,
             span,
             attrs,
+        }
+    }
+
+    fn stmt_expr(&mut self, span: Span, expr: P<hir::Expr>) -> hir::Stmt {
+        let LoweredNodeId { node_id: _, hir_id } = self.next_id();
+        hir::Stmt {
+            hir_id,
+            node: hir::StmtKind::Expr(expr),
+            span,
         }
     }
 

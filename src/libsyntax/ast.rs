@@ -1034,6 +1034,7 @@ impl Expr {
             ExprKind::Unary(..) => ExprPrecedence::Unary,
             ExprKind::Lit(_) => ExprPrecedence::Lit,
             ExprKind::Type(..) | ExprKind::Cast(..) => ExprPrecedence::Cast,
+            ExprKind::Let(..) => ExprPrecedence::Let,
             ExprKind::If(..) => ExprPrecedence::If,
             ExprKind::IfLet(..) => ExprPrecedence::IfLet,
             ExprKind::While(..) => ExprPrecedence::While,
@@ -1117,7 +1118,11 @@ pub enum ExprKind {
     Lit(Lit),
     /// A cast (e.g., `foo as f64`).
     Cast(P<Expr>, P<Ty>),
+    /// A type ascription (e.g., `42: usize`). 
     Type(P<Expr>, P<Ty>),
+    /// A `let pat = expr` pseudo-expression that only occurs in `if` / `while`
+    /// expressions. (e.g., `if let 0 = x { .. }`).
+    Let(Vec<P<Pat>>, P<Expr>),
     /// An `if` block, with an optional `else` block.
     ///
     /// `if expr { block } else { expr }`

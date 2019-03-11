@@ -2145,6 +2145,9 @@ impl<'a> State<'a> {
                 self.word_space(":")?;
                 self.print_type(ty)?;
             }
+            ast::ExprKind::Let(ref _pats, ref _expr) => {
+                unimplemented!() // TODO(let_chains)
+            }
             ast::ExprKind::If(ref test, ref blk, ref elseopt) => {
                 self.print_if(test, blk, elseopt.as_ref().map(|e| &**e))?;
             }

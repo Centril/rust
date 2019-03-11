@@ -250,6 +250,8 @@ pub enum ExprPrecedence {
     InlineAsm,
     Mac,
 
+    Let, // TODO
+
     Array,
     Repeat,
     Tup,
@@ -308,6 +310,9 @@ impl ExprPrecedence {
             ExprPrecedence::Try |
             ExprPrecedence::InlineAsm |
             ExprPrecedence::Mac => PREC_POSTFIX,
+
+            // TODO(let_chains)
+            ExprPrecedence::Let => unimplemented!(), // TODO(let_chains)
 
             // Never need parens
             ExprPrecedence::Array |

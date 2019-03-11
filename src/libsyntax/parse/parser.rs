@@ -3860,13 +3860,9 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an `if let` expression (`if` token already eaten).
-    fn parse_if_let_expr(&mut self, attrs: ThinVec<Attribute>)
-                             -> PResult<'a, P<Expr>> {
+    fn parse_if_let_expr(&mut self, attrs: ThinVec<Attribute>) -> PResult<'a, P<Expr>> {
         let lo = self.prev_span;
-        self.expect_keyword(keywords::Let)?;
-        let pats = self.parse_pats()?;
-        self.expect(&token::Eq)?;
-        let expr = self.parse_expr_res(Restrictions::NO_STRUCT_LITERAL, None)?;
+        let expr = self.parse_let_expr()?;
         let thn = self.parse_block()?;
         let (hi, els) = if self.eat_keyword(keywords::Else) {
             let expr = self.parse_else_expr()?;
@@ -3874,7 +3870,22 @@ impl<'a> Parser<'a> {
         } else {
             (thn.span, None)
         };
-        Ok(self.mk_expr(lo.to(hi), ExprKind::IfLet(pats, expr, thn, els), attrs))
+        Ok(self.mk_expr(lo.to(hi), ExprKind::If(expr, thn, els), attrs))
+    }
+
+    /// Parse a `let pat = expr` expression which may occur in the condition
+    /// of `if` or `while` expressions. The `let` token has already been eaten.
+    fn parse_let_expr(&mut self) -> PResult<'a, P<Expr>> {
+        let lo = self.span;
+        self.expect_keyword(keywords::Let)?;
+        let pats = self.parse_pats()?;
+        self.expect(&token::Eq)?;
+        let expr = self.parse_expr_res(Restrictions::NO_STRUCT_LITERAL, None)?;
+
+        let span = lo.to(expr.span);
+        let expr = ExprKind::Let(pats, expr);
+        let attrs = ThinVec::new();
+        Ok(self.mk_expr(span, expr, attrs))
     }
 
     /// Parses `move |args| expr`.
@@ -3988,17 +3999,17 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a `while let` expression (`while` token already eaten).
-    fn parse_while_let_expr(&mut self, opt_label: Option<Label>,
-                                span_lo: Span,
-                                mut attrs: ThinVec<Attribute>) -> PResult<'a, P<Expr>> {
-        self.expect_keyword(keywords::Let)?;
-        let pats = self.parse_pats()?;
-        self.expect(&token::Eq)?;
-        let expr = self.parse_expr_res(Restrictions::NO_STRUCT_LITERAL, None)?;
+    fn parse_while_let_expr(
+        &mut self,
+        opt_label: Option<Label>,
+        span_lo: Span,
+        mut attrs: ThinVec<Attribute>
+    ) -> PResult<'a, P<Expr>> {
+        let expr = self.parse_let_expr()?;
         let (iattrs, body) = self.parse_inner_attrs_and_block()?;
         attrs.extend(iattrs);
         let span = span_lo.to(body.span);
-        return Ok(self.mk_expr(span, ExprKind::WhileLet(pats, expr, body, opt_label), attrs));
+        return Ok(self.mk_expr(span, ExprKind::While(expr, body, opt_label), attrs));
     }
 
     // parse `loop {...}`, `loop` token already eaten
