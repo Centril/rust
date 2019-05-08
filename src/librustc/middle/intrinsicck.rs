@@ -153,7 +153,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ExprVisitor<'a, 'tcx> {
 
     fn visit_expr(&mut self, expr: &'tcx hir::Expr) {
         let res = if let hir::ExprKind::Path(ref qpath) = expr.node {
-            self.tables.qpath_res(qpath, expr.hir_id)
+            self.tables.qpath_res(self.tcx, qpath, expr.hir_id)
         } else {
             Res::Err
         };

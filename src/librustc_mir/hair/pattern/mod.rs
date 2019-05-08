@@ -599,7 +599,7 @@ impl<'a, 'tcx> PatternContext<'a, 'tcx> {
             }
 
             PatKind::TupleStruct(ref qpath, ref subpatterns, ddpos) => {
-                let res = self.tables.qpath_res(qpath, pat.hir_id);
+                let res = self.tables.qpath_res(self.tcx(), qpath, pat.hir_id);
                 let adt_def = match ty.sty {
                     ty::Adt(adt_def, _) => adt_def,
                     ty::Error => { // Avoid ICE (#50585)
@@ -624,7 +624,7 @@ impl<'a, 'tcx> PatternContext<'a, 'tcx> {
             }
 
             PatKind::Struct(ref qpath, ref fields, _) => {
-                let res = self.tables.qpath_res(qpath, pat.hir_id);
+                let res = self.tables.qpath_res(self.tcx(), qpath, pat.hir_id);
                 let subpatterns =
                     fields.iter()
                           .map(|field| {
@@ -808,7 +808,7 @@ impl<'a, 'tcx> PatternContext<'a, 'tcx> {
                   span: Span)
                   -> Pattern<'tcx> {
         let ty = self.tables.node_type(id);
-        let res = self.tables.qpath_res(qpath, id);
+        let res = self.tables.qpath_res(self.tcx(), qpath, id);
         let is_associated_const = match res {
             Res::Def(DefKind::AssociatedConst, _) => true,
             _ => false,

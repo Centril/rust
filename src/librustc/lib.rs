@@ -65,6 +65,7 @@
 #![feature(crate_visibility_modifier)]
 #![feature(proc_macro_hygiene)]
 #![feature(log_syntax)]
+#![feature(type_alias_enum_variants)]
 
 #![recursion_limit="512"]
 

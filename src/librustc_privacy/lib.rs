@@ -900,7 +900,7 @@ impl<'a, 'tcx> Visitor<'tcx> for NamePrivacyVisitor<'a, 'tcx> {
     fn visit_expr(&mut self, expr: &'tcx hir::Expr) {
         match expr.node {
             hir::ExprKind::Struct(ref qpath, ref fields, ref base) => {
-                let res = self.tables.qpath_res(qpath, expr.hir_id);
+                let res = self.tables.qpath_res(self.tcx, qpath, expr.hir_id);
                 let adt = self.tables.expr_ty(expr).ty_adt_def().unwrap();
                 let variant = adt.variant_of_res(res);
                 if let Some(ref base) = *base {
@@ -934,7 +934,7 @@ impl<'a, 'tcx> Visitor<'tcx> for NamePrivacyVisitor<'a, 'tcx> {
     fn visit_pat(&mut self, pat: &'tcx hir::Pat) {
         match pat.node {
             PatKind::Struct(ref qpath, ref fields, _) => {
-                let res = self.tables.qpath_res(qpath, pat.hir_id);
+                let res = self.tables.qpath_res(self.tcx, qpath, pat.hir_id);
                 let adt = self.tables.pat_ty(pat).ty_adt_def().unwrap();
                 let variant = adt.variant_of_res(res);
                 for field in fields {
@@ -1105,7 +1105,7 @@ impl<'a, 'tcx> Visitor<'tcx> for TypePrivacyVisitor<'a, 'tcx> {
     // more code internal visibility at link time. (Access to private functions
     // is already prohibited by type privacy for function types.)
     fn visit_qpath(&mut self, qpath: &'tcx hir::QPath, id: hir::HirId, span: Span) {
-        let def = match self.tables.qpath_res(qpath, id) {
+        let def = match self.tables.qpath_res(self.tcx(), qpath, id) {
             Res::Def(kind, def_id) => Some((kind, def_id)),
             _ => None,
         };
@@ -1127,6 +1127,7 @@ impl<'a, 'tcx> Visitor<'tcx> for TypePrivacyVisitor<'a, 'tcx> {
                 let name = match *qpath {
                     hir::QPath::Resolved(_, ref path) => path.to_string(),
                     hir::QPath::TypeRelative(_, ref segment) => segment.ident.to_string(),
+                    hir::QPath::LangItem(li, _) => li.name().to_string(),
                 };
                 let msg = format!("{} `{}` is private", kind.descr(), name);
                 self.tcx.sess.span_err(span, &msg);

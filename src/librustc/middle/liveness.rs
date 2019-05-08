@@ -538,6 +538,7 @@ fn visit_expr<'a, 'tcx>(ir: &mut IrMaps<'a, 'tcx>, expr: &'tcx Expr) {
       hir::ExprKind::Yield(..) |
       hir::ExprKind::Type(..) |
       hir::ExprKind::Err |
+      hir::ExprKind::Path(hir::QPath::LangItem(..)) |
       hir::ExprKind::Path(hir::QPath::TypeRelative(..)) => {
           intravisit::walk_expr(ir, expr);
       }
@@ -1247,6 +1248,7 @@ impl<'a, 'tcx> Liveness<'a, 'tcx> {
             }
 
             hir::ExprKind::Lit(..) | hir::ExprKind::Err |
+            hir::ExprKind::Path(hir::QPath::LangItem(..)) |
             hir::ExprKind::Path(hir::QPath::TypeRelative(..)) => {
                 succ
             }

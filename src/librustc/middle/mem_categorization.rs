@@ -665,7 +665,7 @@ impl<'a, 'gcx, 'tcx> MemCategorizationContext<'a, 'gcx, 'tcx> {
             }
 
             hir::ExprKind::Path(ref qpath) => {
-                let res = self.tables.qpath_res(qpath, expr.hir_id);
+                let res = self.tables.qpath_res(self.tcx, qpath, expr.hir_id);
                 self.cat_res(expr.hir_id, expr.span, expr_ty, res)
             }
 
@@ -1273,7 +1273,7 @@ impl<'a, 'gcx, 'tcx> MemCategorizationContext<'a, 'gcx, 'tcx> {
 
         match pat.node {
             PatKind::TupleStruct(ref qpath, ref subpats, ddpos) => {
-                let res = self.tables.qpath_res(qpath, pat.hir_id);
+                let res = self.tables.qpath_res(self.tcx, qpath, pat.hir_id);
                 let (cmt, expected_len) = match res {
                     Res::Err => {
                         debug!("access to unresolvable pattern {:?}", pat);
@@ -1316,7 +1316,7 @@ impl<'a, 'gcx, 'tcx> MemCategorizationContext<'a, 'gcx, 'tcx> {
 
             PatKind::Struct(ref qpath, ref field_pats, _) => {
                 // {f1: p1, ..., fN: pN}
-                let res = self.tables.qpath_res(qpath, pat.hir_id);
+                let res = self.tables.qpath_res(self.tcx, qpath, pat.hir_id);
                 let cmt = match res {
                     Res::Err => {
                         debug!("access to unresolvable pattern {:?}", pat);

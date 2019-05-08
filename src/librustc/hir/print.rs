@@ -1716,6 +1716,9 @@ impl<'a> State<'a> {
                                             colons_before_params)
                 })
             }
+            hir::QPath::LangItem(lang_item, _) => {
+                self.s.word(lang_item.name())
+            }
         }
     }
 

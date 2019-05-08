@@ -12,8 +12,11 @@ pub use self::UnsafeSource::*;
 
 use crate::hir::def::{Res, DefKind};
 use crate::hir::def_id::{DefId, DefIndex, LocalDefId, CRATE_DEF_INDEX};
+use crate::middle::lang_items::{LangItem, Location};
 use crate::util::nodemap::{NodeMap, FxHashSet};
 use crate::mir::mono::Linkage;
+use crate::ty::AdtKind;
+use crate::ty::query::Providers;
 
 use errors::FatalError;
 use syntax_pos::{Span, DUMMY_SP, symbol::InternedString};
@@ -27,8 +30,6 @@ use syntax::ptr::P;
 use syntax::symbol::{Symbol, keywords};
 use syntax::tokenstream::TokenStream;
 use syntax::util::parser::ExprPrecedence;
-use crate::ty::AdtKind;
-use crate::ty::query::Providers;
 
 use rustc_data_structures::sync::{par_for_each_in, Send, Sync};
 use rustc_data_structures::thin_vec::ThinVec;
@@ -1413,6 +1414,13 @@ impl Expr {
                 true
             }
 
+            ExprKind::Path(QPath::LangItem(lang_item, _)) => {
+                match lang_item.location() {
+                    Location::Static => true,
+                    _ => false,
+                }
+            }
+
             // Partially qualified paths in expressions can only legally
             // refer to associated items which are always rvalues.
             ExprKind::Path(QPath::TypeRelative(..)) |
@@ -1585,7 +1593,22 @@ pub enum QPath {
     /// UFCS source paths can desugar into this, with `Vec::new` turning into
     /// `<Vec>::new`, and `T::X::Y::method` into `<<<T>::X>::Y>::method`,
     /// the `X` and `Y` nodes each being a `TyKind::Path(QPath::TypeRelative(..))`.
-    TypeRelative(P<Ty>, P<PathSegment>)
+    TypeRelative(P<Ty>, P<PathSegment>),
+
+    /// A reference to a `#[lang = "foo"]` item.
+    /// This is matched up with the corresponding `DefId` lazily.
+    LangItem(LangItem, Span),
+}
+
+impl QPath {
+    /// Returns the span of the path.
+    pub fn path_span(&self) -> Span {
+        match self {
+            QPath::Resolved(_, path) => path.span,
+            QPath::TypeRelative(qself, _) => qself.span,
+            QPath::LangItem(_, span) => *span,
+        }
+    }
 }
 
 /// Hints at the original code for a let statement.

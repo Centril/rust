@@ -11,6 +11,7 @@
 
 pub use self::LangItem::*;
 
+use crate::hir::def::DefKind;
 use crate::hir::def_id::DefId;
 use crate::hir::check_attr::Target;
 use crate::ty::{self, TyCtxt};
@@ -24,11 +25,50 @@ use rustc_macros::HashStable;
 use crate::hir::itemlikevisit::ItemLikeVisitor;
 use crate::hir;
 
+/// All the locations that a `#[lang = "<name>"]` attribute is valid on.
+/// The variant names correspond to `check_attr::Target` and `DefKind`.
+#[derive(Copy, Clone)]
+pub enum Location {
+    Enum,
+    Fn,
+    Impl,
+    Static,
+    Struct,
+    Trait,
+}
+
+impl Location {
+    /// Convert the `Location` into the corresponding `DefKind`.
+    /// Returns `None` in case of `Location::Impl` as it has no equivalent in the domain.
+    pub fn into_def_kind_opt(self) -> Option<DefKind> {
+        Some(match self {
+            Self::Enum => DefKind::Enum,
+            Self::Fn => DefKind::Fn,
+            Self::Impl => return None,
+            Self::Static => DefKind::Static,
+            Self::Struct => DefKind::Struct,
+            Self::Trait => DefKind::Trait,
+        })
+    }
+
+    /// Converts the `Location` into the corresponding `Target`.
+    fn into_target(self) -> Target {
+        match self {
+            Self::Enum => Target::Enum,
+            Self::Fn => Target::Fn,
+            Self::Impl => Target::Impl,
+            Self::Static => Target::Static,
+            Self::Struct => Target::Struct,
+            Self::Trait => Target::Trait,
+        }
+    }
+}
+
 // The actual lang items defined come at the end of this file in one handy table.
 // So you probably just want to nip down to the end.
 macro_rules! language_item_table {
     (
-        $( $variant:ident, $name:expr, $method:ident, $target:path; )*
+        $( $variant:ident, $name:expr, $method:ident, $location:path; )*
     ) => {
 
 enum_from_u32! {
@@ -43,9 +83,16 @@ impl LangItem {
     /// Returns the `name` in `#[lang = "$name"]`.
     /// For example, `LangItem::EqTraitLangItem`,
     /// that is `#[lang = "eq"]` would result in `"eq"`.
-    fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             $( $variant => $name, )*
+        }
+    }
+
+    /// Returns the `Location` where the lang item may be attached.
+    pub fn location(self) -> Location {
+        match self {
+            $( $variant => $location, )*
         }
     }
 }
@@ -108,7 +155,7 @@ struct LanguageItemCollector<'a, 'tcx: 'a> {
     items: LanguageItems,
     tcx: TyCtxt<'a, 'tcx, 'tcx>,
     /// A mapping from the name of the lang item to its order and the form it must be of.
-    item_refs: FxHashMap<&'static str, (usize, Target)>,
+    item_refs: FxHashMap<&'static str, (usize, Location)>,
 }
 
 impl<'a, 'v, 'tcx> ItemLikeVisitor<'v> for LanguageItemCollector<'a, 'tcx> {
@@ -117,12 +164,13 @@ impl<'a, 'v, 'tcx> ItemLikeVisitor<'v> for LanguageItemCollector<'a, 'tcx> {
             let actual_target = Target::from_item(item);
             match self.item_refs.get(&*value.as_str()).cloned() {
                 // Known lang item with attribute on correct target.
-                Some((item_index, expected_target)) if actual_target == expected_target => {
+                Some((item_index, expected)) if actual_target == expected.into_target() => {
                     let def_id = self.tcx.hir().local_def_id_from_hir_id(item.hir_id);
                     self.collect_item(item_index, def_id);
                 },
                 // Known lang item with attribute on incorrect target.
-                Some((_, expected_target)) => {
+                Some((_, expected)) => {
+                    let expected_target = expected.into_target();
                     struct_span_err!(
                         self.tcx.sess, span, E0718,
                         "`{}` language item must be applied to a {}",
@@ -163,7 +211,7 @@ impl<'a, 'tcx> LanguageItemCollector<'a, 'tcx> {
     fn new(tcx: TyCtxt<'a, 'tcx, 'tcx>) -> LanguageItemCollector<'a, 'tcx> {
         let mut item_refs = FxHashMap::default();
 
-        $( item_refs.insert($name, ($variant as usize, $target)); )*
+        $( item_refs.insert($name, ($variant as usize, $location)); )*
 
         LanguageItemCollector {
             tcx,
@@ -246,88 +294,88 @@ pub fn collect<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>) -> LanguageItems {
 
 language_item_table! {
 //  Variant name,                Name,                 Method name,             Target;
-    CharImplItem,                "char",               char_impl,               Target::Impl;
-    StrImplItem,                 "str",                str_impl,                Target::Impl;
-    SliceImplItem,               "slice",              slice_impl,              Target::Impl;
-    SliceU8ImplItem,             "slice_u8",           slice_u8_impl,           Target::Impl;
-    StrAllocImplItem,            "str_alloc",          str_alloc_impl,          Target::Impl;
-    SliceAllocImplItem,          "slice_alloc",        slice_alloc_impl,        Target::Impl;
-    SliceU8AllocImplItem,        "slice_u8_alloc",     slice_u8_alloc_impl,     Target::Impl;
-    ConstPtrImplItem,            "const_ptr",          const_ptr_impl,          Target::Impl;
-    MutPtrImplItem,              "mut_ptr",            mut_ptr_impl,            Target::Impl;
-    I8ImplItem,                  "i8",                 i8_impl,                 Target::Impl;
-    I16ImplItem,                 "i16",                i16_impl,                Target::Impl;
-    I32ImplItem,                 "i32",                i32_impl,                Target::Impl;
-    I64ImplItem,                 "i64",                i64_impl,                Target::Impl;
-    I128ImplItem,                "i128",               i128_impl,               Target::Impl;
-    IsizeImplItem,               "isize",              isize_impl,              Target::Impl;
-    U8ImplItem,                  "u8",                 u8_impl,                 Target::Impl;
-    U16ImplItem,                 "u16",                u16_impl,                Target::Impl;
-    U32ImplItem,                 "u32",                u32_impl,                Target::Impl;
-    U64ImplItem,                 "u64",                u64_impl,                Target::Impl;
-    U128ImplItem,                "u128",               u128_impl,               Target::Impl;
-    UsizeImplItem,               "usize",              usize_impl,              Target::Impl;
-    F32ImplItem,                 "f32",                f32_impl,                Target::Impl;
-    F64ImplItem,                 "f64",                f64_impl,                Target::Impl;
-    F32RuntimeImplItem,          "f32_runtime",        f32_runtime_impl,        Target::Impl;
-    F64RuntimeImplItem,          "f64_runtime",        f64_runtime_impl,        Target::Impl;
+    CharImplItem,                "char",               char_impl,               Location::Impl;
+    StrImplItem,                 "str",                str_impl,                Location::Impl;
+    SliceImplItem,               "slice",              slice_impl,              Location::Impl;
+    SliceU8ImplItem,             "slice_u8",           slice_u8_impl,           Location::Impl;
+    StrAllocImplItem,            "str_alloc",          str_alloc_impl,          Location::Impl;
+    SliceAllocImplItem,          "slice_alloc",        slice_alloc_impl,        Location::Impl;
+    SliceU8AllocImplItem,        "slice_u8_alloc",     slice_u8_alloc_impl,     Location::Impl;
+    ConstPtrImplItem,            "const_ptr",          const_ptr_impl,          Location::Impl;
+    MutPtrImplItem,              "mut_ptr",            mut_ptr_impl,            Location::Impl;
+    I8ImplItem,                  "i8",                 i8_impl,                 Location::Impl;
+    I16ImplItem,                 "i16",                i16_impl,                Location::Impl;
+    I32ImplItem,                 "i32",                i32_impl,                Location::Impl;
+    I64ImplItem,                 "i64",                i64_impl,                Location::Impl;
+    I128ImplItem,                "i128",               i128_impl,               Location::Impl;
+    IsizeImplItem,               "isize",              isize_impl,              Location::Impl;
+    U8ImplItem,                  "u8",                 u8_impl,                 Location::Impl;
+    U16ImplItem,                 "u16",                u16_impl,                Location::Impl;
+    U32ImplItem,                 "u32",                u32_impl,                Location::Impl;
+    U64ImplItem,                 "u64",                u64_impl,                Location::Impl;
+    U128ImplItem,                "u128",               u128_impl,               Location::Impl;
+    UsizeImplItem,               "usize",              usize_impl,              Location::Impl;
+    F32ImplItem,                 "f32",                f32_impl,                Location::Impl;
+    F64ImplItem,                 "f64",                f64_impl,                Location::Impl;
+    F32RuntimeImplItem,          "f32_runtime",        f32_runtime_impl,        Location::Impl;
+    F64RuntimeImplItem,          "f64_runtime",        f64_runtime_impl,        Location::Impl;
 
-    SizedTraitLangItem,          "sized",              sized_trait,             Target::Trait;
-    UnsizeTraitLangItem,         "unsize",             unsize_trait,            Target::Trait;
-    CopyTraitLangItem,           "copy",               copy_trait,              Target::Trait;
-    CloneTraitLangItem,          "clone",              clone_trait,             Target::Trait;
-    SyncTraitLangItem,           "sync",               sync_trait,              Target::Trait;
-    FreezeTraitLangItem,         "freeze",             freeze_trait,            Target::Trait;
+    SizedTraitLangItem,          "sized",              sized_trait,             Location::Trait;
+    UnsizeTraitLangItem,         "unsize",             unsize_trait,            Location::Trait;
+    CopyTraitLangItem,           "copy",               copy_trait,              Location::Trait;
+    CloneTraitLangItem,          "clone",              clone_trait,             Location::Trait;
+    SyncTraitLangItem,           "sync",               sync_trait,              Location::Trait;
+    FreezeTraitLangItem,         "freeze",             freeze_trait,            Location::Trait;
 
-    DropTraitLangItem,           "drop",               drop_trait,              Target::Trait;
+    DropTraitLangItem,           "drop",               drop_trait,              Location::Trait;
 
-    CoerceUnsizedTraitLangItem,  "coerce_unsized",     coerce_unsized_trait,    Target::Trait;
-    DispatchFromDynTraitLangItem,"dispatch_from_dyn",  dispatch_from_dyn_trait, Target::Trait;
+    CoerceUnsizedTraitLangItem,  "coerce_unsized",     coerce_unsized_trait,    Location::Trait;
+    DispatchFromDynTraitLangItem,"dispatch_from_dyn",  dispatch_from_dyn_trait, Location::Trait;
 
-    AddTraitLangItem,            "add",                add_trait,               Target::Trait;
-    SubTraitLangItem,            "sub",                sub_trait,               Target::Trait;
-    MulTraitLangItem,            "mul",                mul_trait,               Target::Trait;
-    DivTraitLangItem,            "div",                div_trait,               Target::Trait;
-    RemTraitLangItem,            "rem",                rem_trait,               Target::Trait;
-    NegTraitLangItem,            "neg",                neg_trait,               Target::Trait;
-    NotTraitLangItem,            "not",                not_trait,               Target::Trait;
-    BitXorTraitLangItem,         "bitxor",             bitxor_trait,            Target::Trait;
-    BitAndTraitLangItem,         "bitand",             bitand_trait,            Target::Trait;
-    BitOrTraitLangItem,          "bitor",              bitor_trait,             Target::Trait;
-    ShlTraitLangItem,            "shl",                shl_trait,               Target::Trait;
-    ShrTraitLangItem,            "shr",                shr_trait,               Target::Trait;
-    AddAssignTraitLangItem,      "add_assign",         add_assign_trait,        Target::Trait;
-    SubAssignTraitLangItem,      "sub_assign",         sub_assign_trait,        Target::Trait;
-    MulAssignTraitLangItem,      "mul_assign",         mul_assign_trait,        Target::Trait;
-    DivAssignTraitLangItem,      "div_assign",         div_assign_trait,        Target::Trait;
-    RemAssignTraitLangItem,      "rem_assign",         rem_assign_trait,        Target::Trait;
-    BitXorAssignTraitLangItem,   "bitxor_assign",      bitxor_assign_trait,     Target::Trait;
-    BitAndAssignTraitLangItem,   "bitand_assign",      bitand_assign_trait,     Target::Trait;
-    BitOrAssignTraitLangItem,    "bitor_assign",       bitor_assign_trait,      Target::Trait;
-    ShlAssignTraitLangItem,      "shl_assign",         shl_assign_trait,        Target::Trait;
-    ShrAssignTraitLangItem,      "shr_assign",         shr_assign_trait,        Target::Trait;
-    IndexTraitLangItem,          "index",              index_trait,             Target::Trait;
-    IndexMutTraitLangItem,       "index_mut",          index_mut_trait,         Target::Trait;
+    AddTraitLangItem,            "add",                add_trait,               Location::Trait;
+    SubTraitLangItem,            "sub",                sub_trait,               Location::Trait;
+    MulTraitLangItem,            "mul",                mul_trait,               Location::Trait;
+    DivTraitLangItem,            "div",                div_trait,               Location::Trait;
+    RemTraitLangItem,            "rem",                rem_trait,               Location::Trait;
+    NegTraitLangItem,            "neg",                neg_trait,               Location::Trait;
+    NotTraitLangItem,            "not",                not_trait,               Location::Trait;
+    BitXorTraitLangItem,         "bitxor",             bitxor_trait,            Location::Trait;
+    BitAndTraitLangItem,         "bitand",             bitand_trait,            Location::Trait;
+    BitOrTraitLangItem,          "bitor",              bitor_trait,             Location::Trait;
+    ShlTraitLangItem,            "shl",                shl_trait,               Location::Trait;
+    ShrTraitLangItem,            "shr",                shr_trait,               Location::Trait;
+    AddAssignTraitLangItem,      "add_assign",         add_assign_trait,        Location::Trait;
+    SubAssignTraitLangItem,      "sub_assign",         sub_assign_trait,        Location::Trait;
+    MulAssignTraitLangItem,      "mul_assign",         mul_assign_trait,        Location::Trait;
+    DivAssignTraitLangItem,      "div_assign",         div_assign_trait,        Location::Trait;
+    RemAssignTraitLangItem,      "rem_assign",         rem_assign_trait,        Location::Trait;
+    BitXorAssignTraitLangItem,   "bitxor_assign",      bitxor_assign_trait,     Location::Trait;
+    BitAndAssignTraitLangItem,   "bitand_assign",      bitand_assign_trait,     Location::Trait;
+    BitOrAssignTraitLangItem,    "bitor_assign",       bitor_assign_trait,      Location::Trait;
+    ShlAssignTraitLangItem,      "shl_assign",         shl_assign_trait,        Location::Trait;
+    ShrAssignTraitLangItem,      "shr_assign",         shr_assign_trait,        Location::Trait;
+    IndexTraitLangItem,          "index",              index_trait,             Location::Trait;
+    IndexMutTraitLangItem,       "index_mut",          index_mut_trait,         Location::Trait;
 
-    UnsafeCellTypeLangItem,      "unsafe_cell",        unsafe_cell_type,        Target::Struct;
-    VaListTypeLangItem,          "va_list",            va_list,                 Target::Struct;
+    UnsafeCellTypeLangItem,      "unsafe_cell",        unsafe_cell_type,        Location::Struct;
+    VaListTypeLangItem,          "va_list",            va_list,                 Location::Struct;
 
-    DerefTraitLangItem,          "deref",              deref_trait,             Target::Trait;
-    DerefMutTraitLangItem,       "deref_mut",          deref_mut_trait,         Target::Trait;
-    ReceiverTraitLangItem,       "receiver",           receiver_trait,          Target::Trait;
+    DerefTraitLangItem,          "deref",              deref_trait,             Location::Trait;
+    DerefMutTraitLangItem,       "deref_mut",          deref_mut_trait,         Location::Trait;
+    ReceiverTraitLangItem,       "receiver",           receiver_trait,          Location::Trait;
 
-    FnTraitLangItem,             "fn",                 fn_trait,                Target::Trait;
-    FnMutTraitLangItem,          "fn_mut",             fn_mut_trait,            Target::Trait;
-    FnOnceTraitLangItem,         "fn_once",            fn_once_trait,           Target::Trait;
+    FnTraitLangItem,             "fn",                 fn_trait,                Location::Trait;
+    FnMutTraitLangItem,          "fn_mut",             fn_mut_trait,            Location::Trait;
+    FnOnceTraitLangItem,         "fn_once",            fn_once_trait,           Location::Trait;
 
-    GeneratorStateLangItem,      "generator_state",    gen_state,               Target::Enum;
-    GeneratorTraitLangItem,      "generator",          gen_trait,               Target::Trait;
-    UnpinTraitLangItem,          "unpin",              unpin_trait,             Target::Trait;
-    PinTypeLangItem,             "pin",                pin_type,                Target::Struct;
+    GeneratorStateLangItem,      "generator_state",    gen_state,               Location::Enum;
+    GeneratorTraitLangItem,      "generator",          gen_trait,               Location::Trait;
+    UnpinTraitLangItem,          "unpin",              unpin_trait,             Location::Trait;
+    PinTypeLangItem,             "pin",                pin_type,                Location::Struct;
 
-    EqTraitLangItem,             "eq",                 eq_trait,                Target::Trait;
-    PartialOrdTraitLangItem,     "partial_ord",        partial_ord_trait,       Target::Trait;
-    OrdTraitLangItem,            "ord",                ord_trait,               Target::Trait;
+    EqTraitLangItem,             "eq",                 eq_trait,                Location::Trait;
+    PartialOrdTraitLangItem,     "partial_ord",        partial_ord_trait,       Location::Trait;
+    OrdTraitLangItem,            "ord",                ord_trait,               Location::Trait;
 
     // A number of panic-related lang items. The `panic` item corresponds to
     // divide-by-zero and various panic cases with `match`. The
@@ -338,68 +386,68 @@ language_item_table! {
     // defined to use it, but a final product is required to define it
     // somewhere. Additionally, there are restrictions on crates that use a weak
     // lang item, but do not have it defined.
-    PanicFnLangItem,             "panic",              panic_fn,                Target::Fn;
-    PanicBoundsCheckFnLangItem,  "panic_bounds_check", panic_bounds_check_fn,   Target::Fn;
-    PanicInfoLangItem,           "panic_info",         panic_info,              Target::Struct;
-    PanicImplLangItem,           "panic_impl",         panic_impl,              Target::Fn;
+    PanicFnLangItem,             "panic",              panic_fn,                Location::Fn;
+    PanicBoundsCheckFnLangItem,  "panic_bounds_check", panic_bounds_check_fn,   Location::Fn;
+    PanicInfoLangItem,           "panic_info",         panic_info,              Location::Struct;
+    PanicImplLangItem,           "panic_impl",         panic_impl,              Location::Fn;
     // Libstd panic entry point. Necessary for const eval to be able to catch it
-    BeginPanicFnLangItem,        "begin_panic",        begin_panic_fn,          Target::Fn;
+    BeginPanicFnLangItem,        "begin_panic",        begin_panic_fn,          Location::Fn;
 
-    ExchangeMallocFnLangItem,    "exchange_malloc",    exchange_malloc_fn,      Target::Fn;
-    BoxFreeFnLangItem,           "box_free",           box_free_fn,             Target::Fn;
-    DropInPlaceFnLangItem,       "drop_in_place",      drop_in_place_fn,        Target::Fn;
-    OomLangItem,                 "oom",                oom,                     Target::Fn;
-    AllocLayoutLangItem,         "alloc_layout",       alloc_layout,            Target::Struct;
+    ExchangeMallocFnLangItem,    "exchange_malloc",    exchange_malloc_fn,      Location::Fn;
+    BoxFreeFnLangItem,           "box_free",           box_free_fn,             Location::Fn;
+    DropInPlaceFnLangItem,       "drop_in_place",      drop_in_place_fn,        Location::Fn;
+    OomLangItem,                 "oom",                oom,                     Location::Fn;
+    AllocLayoutLangItem,         "alloc_layout",       alloc_layout,            Location::Struct;
 
-    StartFnLangItem,             "start",              start_fn,                Target::Fn;
+    StartFnLangItem,             "start",              start_fn,                Location::Fn;
 
-    EhPersonalityLangItem,       "eh_personality",     eh_personality,          Target::Fn;
-    EhUnwindResumeLangItem,      "eh_unwind_resume",   eh_unwind_resume,        Target::Fn;
-    MSVCTryFilterLangItem,       "msvc_try_filter",    msvc_try_filter,         Target::Static;
+    EhPersonalityLangItem,       "eh_personality",     eh_personality,          Location::Fn;
+    EhUnwindResumeLangItem,      "eh_unwind_resume",   eh_unwind_resume,        Location::Fn;
+    MSVCTryFilterLangItem,       "msvc_try_filter",    msvc_try_filter,         Location::Static;
 
-    OwnedBoxLangItem,            "owned_box",          owned_box,               Target::Struct;
+    OwnedBoxLangItem,            "owned_box",          owned_box,               Location::Struct;
 
-    PhantomDataItem,             "phantom_data",       phantom_data,            Target::Struct;
+    PhantomDataItem,             "phantom_data",       phantom_data,            Location::Struct;
 
-    ManuallyDropItem,            "manually_drop",      manually_drop,           Target::Struct;
+    ManuallyDropItem,            "manually_drop",      manually_drop,           Location::Struct;
 
-    DebugTraitLangItem,          "debug_trait",        debug_trait,             Target::Trait;
+    DebugTraitLangItem,          "debug_trait",        debug_trait,             Location::Trait;
 
     // A lang item for each of the 128-bit operators we can optionally lower.
-    I128AddFnLangItem,           "i128_add",           i128_add_fn,             Target::Fn;
-    U128AddFnLangItem,           "u128_add",           u128_add_fn,             Target::Fn;
-    I128SubFnLangItem,           "i128_sub",           i128_sub_fn,             Target::Fn;
-    U128SubFnLangItem,           "u128_sub",           u128_sub_fn,             Target::Fn;
-    I128MulFnLangItem,           "i128_mul",           i128_mul_fn,             Target::Fn;
-    U128MulFnLangItem,           "u128_mul",           u128_mul_fn,             Target::Fn;
-    I128DivFnLangItem,           "i128_div",           i128_div_fn,             Target::Fn;
-    U128DivFnLangItem,           "u128_div",           u128_div_fn,             Target::Fn;
-    I128RemFnLangItem,           "i128_rem",           i128_rem_fn,             Target::Fn;
-    U128RemFnLangItem,           "u128_rem",           u128_rem_fn,             Target::Fn;
-    I128ShlFnLangItem,           "i128_shl",           i128_shl_fn,             Target::Fn;
-    U128ShlFnLangItem,           "u128_shl",           u128_shl_fn,             Target::Fn;
-    I128ShrFnLangItem,           "i128_shr",           i128_shr_fn,             Target::Fn;
-    U128ShrFnLangItem,           "u128_shr",           u128_shr_fn,             Target::Fn;
+    I128AddFnLangItem,           "i128_add",           i128_add_fn,             Location::Fn;
+    U128AddFnLangItem,           "u128_add",           u128_add_fn,             Location::Fn;
+    I128SubFnLangItem,           "i128_sub",           i128_sub_fn,             Location::Fn;
+    U128SubFnLangItem,           "u128_sub",           u128_sub_fn,             Location::Fn;
+    I128MulFnLangItem,           "i128_mul",           i128_mul_fn,             Location::Fn;
+    U128MulFnLangItem,           "u128_mul",           u128_mul_fn,             Location::Fn;
+    I128DivFnLangItem,           "i128_div",           i128_div_fn,             Location::Fn;
+    U128DivFnLangItem,           "u128_div",           u128_div_fn,             Location::Fn;
+    I128RemFnLangItem,           "i128_rem",           i128_rem_fn,             Location::Fn;
+    U128RemFnLangItem,           "u128_rem",           u128_rem_fn,             Location::Fn;
+    I128ShlFnLangItem,           "i128_shl",           i128_shl_fn,             Location::Fn;
+    U128ShlFnLangItem,           "u128_shl",           u128_shl_fn,             Location::Fn;
+    I128ShrFnLangItem,           "i128_shr",           i128_shr_fn,             Location::Fn;
+    U128ShrFnLangItem,           "u128_shr",           u128_shr_fn,             Location::Fn;
     // And overflow versions for the operators that are checkable.
     // While MIR calls these Checked*, they return (T,bool), not Option<T>.
-    I128AddoFnLangItem,          "i128_addo",          i128_addo_fn,            Target::Fn;
-    U128AddoFnLangItem,          "u128_addo",          u128_addo_fn,            Target::Fn;
-    I128SuboFnLangItem,          "i128_subo",          i128_subo_fn,            Target::Fn;
-    U128SuboFnLangItem,          "u128_subo",          u128_subo_fn,            Target::Fn;
-    I128MuloFnLangItem,          "i128_mulo",          i128_mulo_fn,            Target::Fn;
-    U128MuloFnLangItem,          "u128_mulo",          u128_mulo_fn,            Target::Fn;
-    I128ShloFnLangItem,          "i128_shlo",          i128_shlo_fn,            Target::Fn;
-    U128ShloFnLangItem,          "u128_shlo",          u128_shlo_fn,            Target::Fn;
-    I128ShroFnLangItem,          "i128_shro",          i128_shro_fn,            Target::Fn;
-    U128ShroFnLangItem,          "u128_shro",          u128_shro_fn,            Target::Fn;
+    I128AddoFnLangItem,          "i128_addo",          i128_addo_fn,            Location::Fn;
+    U128AddoFnLangItem,          "u128_addo",          u128_addo_fn,            Location::Fn;
+    I128SuboFnLangItem,          "i128_subo",          i128_subo_fn,            Location::Fn;
+    U128SuboFnLangItem,          "u128_subo",          u128_subo_fn,            Location::Fn;
+    I128MuloFnLangItem,          "i128_mulo",          i128_mulo_fn,            Location::Fn;
+    U128MuloFnLangItem,          "u128_mulo",          u128_mulo_fn,            Location::Fn;
+    I128ShloFnLangItem,          "i128_shlo",          i128_shlo_fn,            Location::Fn;
+    U128ShloFnLangItem,          "u128_shlo",          u128_shlo_fn,            Location::Fn;
+    I128ShroFnLangItem,          "i128_shro",          i128_shro_fn,            Location::Fn;
+    U128ShroFnLangItem,          "u128_shro",          u128_shro_fn,            Location::Fn;
 
     // Align offset for stride != 1, must not panic.
-    AlignOffsetLangItem,         "align_offset",       align_offset_fn,         Target::Fn;
+    AlignOffsetLangItem,         "align_offset",       align_offset_fn,         Location::Fn;
 
-    TerminationTraitLangItem,    "termination",        termination,             Target::Trait;
+    TerminationTraitLangItem,    "termination",        termination,             Location::Trait;
 
-    Arc,                         "arc",                arc,                     Target::Struct;
-    Rc,                          "rc",                 rc,                      Target::Struct;
+    Arc,                         "arc",                arc,                     Location::Struct;
+    Rc,                          "rc",                 rc,                      Location::Struct;
 }
 
 impl<'a, 'tcx, 'gcx> TyCtxt<'a, 'tcx, 'gcx> {

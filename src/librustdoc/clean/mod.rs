@@ -2923,6 +2923,9 @@ impl Clean<Type> for hir::Ty {
                     trait_: box resolve_type(cx, trait_path.clean(cx), self.hir_id)
                 }
             }
+            TyKind::Path(hir::QPath::LangItem(..)) => {
+                panic!("Shouldn't have to document lang items")
+            }
             TyKind::TraitObject(ref bounds, ref lifetime) => {
                 match bounds[0].clean(cx).trait_ {
                     ResolvedPath { path, param_names: None, did, is_generic } => {
@@ -3577,6 +3580,7 @@ fn qpath_to_string(p: &hir::QPath) -> String {
     let segments = match *p {
         hir::QPath::Resolved(_, ref path) => &path.segments,
         hir::QPath::TypeRelative(_, ref segment) => return segment.ident.to_string(),
+        hir::QPath::LangItem(li, _) => return li.name().to_string(),
     };
 
     let mut s = String::new();

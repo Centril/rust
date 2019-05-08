@@ -468,7 +468,7 @@ fn make_mirror_unadjusted<'a, 'gcx, 'tcx>(cx: &mut Cx<'a, 'gcx, 'tcx>,
                             }
                         }
                         AdtKind::Enum => {
-                            let res = cx.tables().qpath_res(qpath, expr.hir_id);
+                            let res = cx.tables().qpath_res(cx.tcx(), qpath, expr.hir_id);
                             match res {
                                 Res::Def(DefKind::Variant, variant_id) => {
                                     assert!(base.is_none());
@@ -530,7 +530,7 @@ fn make_mirror_unadjusted<'a, 'gcx, 'tcx>(cx: &mut Cx<'a, 'gcx, 'tcx>,
         }
 
         hir::ExprKind::Path(ref qpath) => {
-            let res = cx.tables().qpath_res(qpath, expr.hir_id);
+            let res = cx.tables().qpath_res(cx.tcx(), qpath, expr.hir_id);
             convert_path_expr(cx, expr, res)
         }
 
@@ -656,7 +656,7 @@ fn make_mirror_unadjusted<'a, 'gcx, 'tcx>(cx: &mut Cx<'a, 'gcx, 'tcx>,
                 // The correct solution would be to add symbolic computations to miri,
                 // so we wouldn't have to compute and store the actual value
                 let var = if let hir::ExprKind::Path(ref qpath) = source.node {
-                    let res = cx.tables().qpath_res(qpath, source.hir_id);
+                    let res = cx.tables().qpath_res(cx.tcx(), qpath, source.hir_id);
                     cx
                         .tables()
                         .node_type(source.hir_id)

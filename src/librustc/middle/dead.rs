@@ -231,7 +231,7 @@ impl<'a, 'tcx> Visitor<'tcx> for MarkSymbolVisitor<'a, 'tcx> {
     fn visit_expr(&mut self, expr: &'tcx hir::Expr) {
         match expr.node {
             hir::ExprKind::Path(ref qpath @ hir::QPath::TypeRelative(..)) => {
-                let res = self.tables.qpath_res(qpath, expr.hir_id);
+                let res = self.tables.qpath_res(self.tcx, qpath, expr.hir_id);
                 self.handle_res(res);
             }
             hir::ExprKind::MethodCall(..) => {
@@ -273,7 +273,7 @@ impl<'a, 'tcx> Visitor<'tcx> for MarkSymbolVisitor<'a, 'tcx> {
                 self.handle_field_pattern_match(pat, path.res, fields);
             }
             PatKind::Path(ref qpath @ hir::QPath::TypeRelative(..)) => {
-                let res = self.tables.qpath_res(qpath, pat.hir_id);
+                let res = self.tables.qpath_res(self.tcx, qpath, pat.hir_id);
                 self.handle_res(res);
             }
             _ => ()

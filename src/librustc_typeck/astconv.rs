@@ -1846,6 +1846,11 @@ impl<'o, 'gcx: 'tcx, 'tcx> dyn AstConv<'gcx, 'tcx> + 'o {
                 self.associated_path_to_ty(ast_ty.hir_id, ast_ty.span, ty, res, segment, false)
                     .map(|(ty, _, _)| ty).unwrap_or(tcx.types.err)
             }
+            hir::TyKind::Path(hir::QPath::LangItem(li, span)) => {
+                let tcx = self.tcx();
+                let def_id = tcx.require_lang_item(li);
+                tcx.at(span).type_of(def_id)
+            }
             hir::TyKind::Array(ref ty, ref length) => {
                 let length = self.ast_const_to_const(length, tcx.types.usize);
                 let array_ty = tcx.mk_ty(ty::Array(self.ast_ty_to_ty(&ty), length));

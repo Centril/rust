@@ -629,7 +629,7 @@ impl<'l, 'tcx: 'l> SaveContext<'l, 'tcx> {
                 ..
             }) => {
                 let hir_id = self.tcx.hir().node_to_hir_id(id);
-                self.tables.qpath_res(qpath, hir_id)
+                self.tables.qpath_res(self.tcx, qpath, hir_id)
             }
 
             Node::Expr(&hir::Expr {
@@ -653,7 +653,7 @@ impl<'l, 'tcx: 'l> SaveContext<'l, 'tcx> {
                 ..
             }) => {
                 let hir_id = self.tcx.hir().node_to_hir_id(id);
-                self.tables.qpath_res(qpath, hir_id)
+                self.tables.qpath_res(self.tcx, qpath, hir_id)
             }
 
             Node::Binding(&hir::Pat {

@@ -479,11 +479,12 @@ impl<'tcx> TypeckTables<'tcx> {
     }
 
     /// Returns the final resolution of a `QPath` in an `Expr` or `Pat` node.
-    pub fn qpath_res(&self, qpath: &hir::QPath, id: hir::HirId) -> Res {
+    pub fn qpath_res(&self, tcx: TyCtxt<'_, '_, 'tcx>, qpath: &hir::QPath, id: hir::HirId) -> Res {
         match *qpath {
             hir::QPath::Resolved(_, ref path) => path.res,
             hir::QPath::TypeRelative(..) => self.type_dependent_def(id)
                 .map_or(Res::Err, |(kind, def_id)| Res::Def(kind, def_id)),
+            hir::QPath::LangItem(li, _) => tcx.lang_item_res(li),
         }
     }
 
@@ -1369,6 +1370,14 @@ impl<'a, 'gcx, 'tcx> TyCtxt<'a, 'gcx, 'tcx> {
 
     pub fn lang_items(self) -> Lrc<middle::lang_items::LanguageItems> {
         self.get_lang_items(LOCAL_CRATE)
+    }
+
+    /// Returns the final resolution of a `LangItem` in an `Expr` or `Pat` node.
+    pub fn lang_item_res(&self, li: lang_items::LangItem) -> Res {
+        let def_id = self.require_lang_item(li);
+        let def_kind = li.location().into_def_kind_opt().unwrap();
+        debug_assert_eq!(def_kind, self.def_kind(def_id).unwrap());
+        Res::Def(def_kind, def_id)
     }
 
     /// Due to missing llvm support for lowering 128 bit math to software emulation

@@ -3912,14 +3912,12 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
         }
     }
 
+
     pub fn check_struct_path(&self,
                              qpath: &QPath,
                              hir_id: hir::HirId)
                              -> Option<(&'tcx ty::VariantDef,  Ty<'tcx>)> {
-        let path_span = match *qpath {
-            QPath::Resolved(_, ref path) => path.span,
-            QPath::TypeRelative(ref qself, _) => qself.span
-        };
+        let path_span = qpath.path_span();
         let (def, ty) = self.finish_resolving_struct_path(qpath, path_span, hir_id);
         let variant = match def {
             Res::Err => {
@@ -3986,10 +3984,7 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
                 return self.tcx.types.err;
             };
 
-        let path_span = match *qpath {
-            QPath::Resolved(_, ref path) => path.span,
-            QPath::TypeRelative(ref qself, _) => qself.span
-        };
+        let path_span = qpath.path_span();
 
         // Prohibit struct expressions when non-exhaustive flag is set.
         let adt = adt_ty.ty_adt_def().expect("`check_struct_path` returned non-ADT type");
@@ -4783,16 +4778,16 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
                                     hir_id: hir::HirId)
                                     -> (Res, Ty<'tcx>)
     {
-        match *qpath {
-            QPath::Resolved(ref maybe_qself, ref path) => {
+        match qpath {
+            QPath::Resolved(maybe_qself, path) => {
                 let self_ty = maybe_qself.as_ref().map(|qself| self.to_ty(qself));
                 let ty = AstConv::res_to_ty(self, self_ty, path, true);
                 (path.res, ty)
             }
-            QPath::TypeRelative(ref qself, ref segment) => {
+            QPath::TypeRelative(qself, segment) => {
                 let ty = self.to_ty(qself);
 
-                let res = if let hir::TyKind::Path(QPath::Resolved(_, ref path)) = qself.node {
+                let res = if let hir::TyKind::Path(QPath::Resolved(_, path)) = &qself.node {
                     path.res
                 } else {
                     Res::Err
@@ -4814,6 +4809,15 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
 
                 (result.map(|(kind, def_id)| Res::Def(kind, def_id)).unwrap_or(Res::Err), ty)
             }
+            QPath::LangItem(li, span) => {
+                let ty = self.to_ty(&hir::Ty {
+                    hir_id,
+                    span: *span,
+                    node: hir::TyKind::Path(qpath.clone())
+                });
+                let res = self.tcx().lang_item_res(*li);
+                (res, ty)
+            }
         }
     }
 
@@ -4826,14 +4830,17 @@ impl<'a, 'gcx, 'tcx> FnCtxt<'a, 'gcx, 'tcx> {
                                        -> (Res, Option<Ty<'tcx>>, &'b [hir::PathSegment])
     {
         debug!("resolve_ty_and_res_ufcs: qpath={:?} hir_id={:?} span={:?}", qpath, hir_id, span);
-        let (ty, qself, item_segment) = match *qpath {
-            QPath::Resolved(ref opt_qself, ref path) => {
+        let (ty, qself, item_segment) = match qpath {
+            QPath::Resolved(opt_qself, path) => {
                 return (path.res,
                         opt_qself.as_ref().map(|qself| self.to_ty(qself)),
                         &path.segments[..]);
             }
-            QPath::TypeRelative(ref qself, ref segment) => {
+            QPath::TypeRelative(qself, segment) => {
                 (self.to_ty(qself), qself, segment)
+            }
+            QPath::LangItem(li, ..) => {
+                return (self.tcx().lang_item_res(*li), None, &[]);
             }
         };
         if let Some(&cached_result) = self.tables.borrow().type_dependent_defs().get(hir_id) {

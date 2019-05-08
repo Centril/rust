@@ -94,7 +94,7 @@ impl<'a, 'tcx> Visitor<'tcx> for ReachableContext<'a, 'tcx> {
     fn visit_expr(&mut self, expr: &'tcx hir::Expr) {
         let res = match expr.node {
             hir::ExprKind::Path(ref qpath) => {
-                Some(self.tables.qpath_res(qpath, expr.hir_id))
+                Some(self.tables.qpath_res(self.tcx, qpath, expr.hir_id))
             }
             hir::ExprKind::MethodCall(..) => {
                 self.tables.type_dependent_def(expr.hir_id)

@@ -898,7 +898,7 @@ impl<'a, 'gcx, 'tcx> ExprUseVisitor<'a, 'gcx, 'tcx> {
                 PatKind::Struct(ref qpath, ..) => qpath,
                 _ => return
             };
-            let res = mc.tables.qpath_res(qpath, pat.hir_id);
+            let res = mc.tables.qpath_res(tcx, qpath, pat.hir_id);
             match res {
                 Res::Def(DefKind::Ctor(CtorOf::Variant, ..), variant_ctor_did) => {
                     let variant_did = mc.tcx.parent(variant_ctor_did).unwrap();

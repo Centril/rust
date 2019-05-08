@@ -151,9 +151,10 @@ declare_lint_pass!(NonShorthandFieldPatterns => [NON_SHORTHAND_FIELD_PATTERNS]);
 impl<'a, 'tcx> LateLintPass<'a, 'tcx> for NonShorthandFieldPatterns {
     fn check_pat(&mut self, cx: &LateContext<'_, '_>, pat: &hir::Pat) {
         if let PatKind::Struct(ref qpath, ref field_pats, _) = pat.node {
-            let variant = cx.tables.pat_ty(pat).ty_adt_def()
-                                   .expect("struct pattern type is not an ADT")
-                                   .variant_of_res(cx.tables.qpath_res(qpath, pat.hir_id));
+            let variant = cx.tables
+                .pat_ty(pat).ty_adt_def()
+                .expect("struct pattern type is not an ADT")
+                .variant_of_res(cx.tables.qpath_res(cx.tcx, qpath, pat.hir_id));
             for fieldpat in field_pats {
                 if fieldpat.node.is_shorthand {
                     continue;
@@ -911,7 +912,7 @@ impl<'a, 'tcx> LateLintPass<'a, 'tcx> for MutableTransmutes {
              expr: &hir::Expr)
              -> Option<(Ty<'tcx>, Ty<'tcx>)> {
             let def = if let hir::ExprKind::Path(ref qpath) = expr.node {
-                cx.tables.qpath_res(qpath, expr.hir_id)
+                cx.tables.qpath_res(cx.tcx, qpath, expr.hir_id)
             } else {
                 return None;
             };
@@ -1079,6 +1080,7 @@ impl TypeAliasBounds {
                 }
             }
             hir::QPath::Resolved(..) => false,
+            hir::QPath::LangItem(..) => false,
         }
     }
 
