@@ -1375,8 +1375,7 @@ impl<'a, 'gcx, 'tcx> TyCtxt<'a, 'gcx, 'tcx> {
     /// Returns the final resolution of a `LangItem` in an `Expr` or `Pat` node.
     pub fn lang_item_res(&self, li: lang_items::LangItem) -> Res {
         let def_id = self.require_lang_item(li);
-        let def_kind = li.location().into_def_kind_opt().unwrap();
-        debug_assert_eq!(def_kind, self.def_kind(def_id).unwrap());
+        let def_kind = self.def_kind(def_id).unwrap();
         Res::Def(def_kind, def_id)
     }
 
