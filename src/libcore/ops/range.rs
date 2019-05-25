@@ -398,6 +398,7 @@ impl<Idx> RangeInclusive<Idx> {
     #[stable(feature = "inclusive_range_methods", since = "1.27.0")]
     #[inline]
     #[rustc_promotable]
+    #[cfg_attr(not(stage0), lang = "range_inclusive")]
     pub const fn new(start: Idx, end: Idx) -> Self {
         Self {
             start,

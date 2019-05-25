@@ -42,6 +42,7 @@ use crate::hir::{GenericArg, ConstArg};
 use crate::lint::builtin::{self, PARENTHESIZED_PARAMS_IN_TYPES_AND_MODULES,
                     ELIDED_LIFETIMES_IN_PATHS};
 use crate::middle::cstore::CrateStore;
+use crate::middle::lang_items::LangItem;
 use crate::session::Session;
 use crate::session::config::nightly_options;
 use crate::util::common::FN_OUTPUT_NAME;
@@ -4339,16 +4340,9 @@ impl<'a> LoweringContext<'a> {
             }
             // Desugar `<start>..=<end>` into `std::ops::RangeInclusive::new(<start>, <end>)`.
             ExprKind::Range(Some(ref e1), Some(ref e2), RangeLimits::Closed) => {
-                let id = self.next_id();
                 let e1 = self.lower_expr(e1);
                 let e2 = self.lower_expr(e2);
-                self.expr_call_std_assoc_fn(
-                    id,
-                    e.span,
-                    &["ops", "RangeInclusive"],
-                    "new",
-                    hir_vec![e1, e2],
-                )
+                self.expr_call_lang_fn(e.span, LangItem::RangeInclusiveNew, hir_vec![e1, e2])
             }
             ExprKind::Range(ref e1, ref e2, lims) => {
                 use syntax::ast::RangeLimits::*;
@@ -5107,6 +5101,16 @@ impl<'a> LoweringContext<'a> {
         let ty = P(self.ty_path(ty_path_id, span, hir::QPath::Resolved(None, ty_path)));
         let fn_seg = P(hir::PathSegment::from_ident(Ident::from_str(assoc_fn_name)));
         let fn_path = hir::QPath::TypeRelative(ty, fn_seg);
+        let fn_expr = P(self.expr(span, hir::ExprKind::Path(fn_path), ThinVec::new()));
+        hir::ExprKind::Call(fn_expr, args)
+    }
+
+    fn expr_call_lang_fn(&mut self,
+        span: Span,
+        lang_item: LangItem,
+        args: HirVec<hir::Expr>,
+    ) -> hir::ExprKind {
+        let fn_path = hir::QPath::LangItem(lang_item, span);
         let fn_expr = P(self.expr(span, hir::ExprKind::Path(fn_path), ThinVec::new()));
         hir::ExprKind::Call(fn_expr, args)
     }

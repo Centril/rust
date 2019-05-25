@@ -2143,6 +2143,19 @@ static X: u32 = 42;
 ```
 "##,
 
+E0719: r##"
+This error indicates that a `#[lang = ".."]` attribute was placed
+on a form of item that does not support lang items.
+
+Examples of erroneous code:
+
+```compile_fail,E0719
+#![feature(lang_items)]
+
+#[lang = "arc"]
+use core::cmp;
+```
+"##,
 }
 
 

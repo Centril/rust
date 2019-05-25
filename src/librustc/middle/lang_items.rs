@@ -11,56 +11,43 @@
 
 pub use self::LangItem::*;
 
-use crate::hir::def::DefKind;
+use crate::hir;
 use crate::hir::def_id::DefId;
-use crate::hir::check_attr::Target;
+use crate::hir::itemlikevisit::ItemLikeVisitor;
 use crate::ty::{self, TyCtxt};
 use crate::middle::weak_lang_items;
 use crate::util::nodemap::FxHashMap;
 
+use std::fmt;
 use syntax::ast;
 use syntax::symbol::Symbol;
 use syntax_pos::Span;
 use rustc_macros::HashStable;
-use crate::hir::itemlikevisit::ItemLikeVisitor;
-use crate::hir;
 
 /// All the locations that a `#[lang = "<name>"]` attribute is valid on.
-/// The variant names correspond to `check_attr::Target` and `DefKind`.
-#[derive(Copy, Clone)]
+/// The variant names correspond to the variants in `DefKind`.
+#[derive(Copy, Clone, PartialEq)]
 pub enum Location {
     Enum,
     Fn,
     Impl,
+    Method,
     Static,
     Struct,
     Trait,
 }
 
-impl Location {
-    /// Convert the `Location` into the corresponding `DefKind`.
-    /// Returns `None` in case of `Location::Impl` as it has no equivalent in the domain.
-    pub fn into_def_kind_opt(self) -> Option<DefKind> {
-        Some(match self {
-            Self::Enum => DefKind::Enum,
-            Self::Fn => DefKind::Fn,
-            Self::Impl => return None,
-            Self::Static => DefKind::Static,
-            Self::Struct => DefKind::Struct,
-            Self::Trait => DefKind::Trait,
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Enum => "enum",
+            Self::Fn => "function",
+            Self::Impl => "implementation",
+            Self::Method => "method",
+            Self::Static => "static item",
+            Self::Struct => "struct",
+            Self::Trait => "trait",
         })
-    }
-
-    /// Converts the `Location` into the corresponding `Target`.
-    fn into_target(self) -> Target {
-        match self {
-            Self::Enum => Target::Enum,
-            Self::Fn => Target::Fn,
-            Self::Impl => Target::Impl,
-            Self::Static => Target::Static,
-            Self::Struct => Target::Struct,
-            Self::Trait => Target::Trait,
-        }
     }
 }
 
@@ -97,7 +84,7 @@ impl LangItem {
     }
 }
 
-#[derive(HashStable)]
+#[derive(HashStable, Debug)]
 pub struct LanguageItems {
     /// Mappings from lang items to their possibly found `DefId`s.
     /// The index corresponds to the order in `LangItem`.
@@ -158,57 +145,8 @@ struct LanguageItemCollector<'a, 'tcx: 'a> {
     item_refs: FxHashMap<&'static str, (usize, Location)>,
 }
 
-impl<'a, 'v, 'tcx> ItemLikeVisitor<'v> for LanguageItemCollector<'a, 'tcx> {
-    fn visit_item(&mut self, item: &hir::Item) {
-        if let Some((value, span)) = extract(&item.attrs) {
-            let actual_target = Target::from_item(item);
-            match self.item_refs.get(&*value.as_str()).cloned() {
-                // Known lang item with attribute on correct target.
-                Some((item_index, expected)) if actual_target == expected.into_target() => {
-                    let def_id = self.tcx.hir().local_def_id_from_hir_id(item.hir_id);
-                    self.collect_item(item_index, def_id);
-                },
-                // Known lang item with attribute on incorrect target.
-                Some((_, expected)) => {
-                    let expected_target = expected.into_target();
-                    struct_span_err!(
-                        self.tcx.sess, span, E0718,
-                        "`{}` language item must be applied to a {}",
-                        value, expected_target,
-                    ).span_label(
-                        span,
-                        format!(
-                            "attribute should be applied to a {}, not a {}",
-                            expected_target, actual_target,
-                        ),
-                    ).emit();
-                },
-                // Unknown lang item.
-                _ => {
-                    struct_span_err!(
-                        self.tcx.sess, span, E0522,
-                        "definition of an unknown language item: `{}`",
-                        value
-                    ).span_label(
-                        span,
-                        format!("definition of unknown language item `{}`", value)
-                    ).emit();
-                },
-            }
-        }
-    }
-
-    fn visit_trait_item(&mut self, _trait_item: &hir::TraitItem) {
-        // at present, lang items are always items, not trait items
-    }
-
-    fn visit_impl_item(&mut self, _impl_item: &hir::ImplItem) {
-        // at present, lang items are always items, not impl items
-    }
-}
-
 impl<'a, 'tcx> LanguageItemCollector<'a, 'tcx> {
-    fn new(tcx: TyCtxt<'a, 'tcx, 'tcx>) -> LanguageItemCollector<'a, 'tcx> {
+    fn new(tcx: TyCtxt<'a, 'tcx, 'tcx>) -> Self {
         let mut item_refs = FxHashMap::default();
 
         $( item_refs.insert($name, ($variant as usize, $location)); )*
@@ -219,10 +157,18 @@ impl<'a, 'tcx> LanguageItemCollector<'a, 'tcx> {
             item_refs,
         }
     }
+}
 
+// End of the macro
+    }
+}
+
+impl LanguageItemCollector<'_, '_> {
     fn collect_item(&mut self, item_index: usize, item_def_id: DefId) {
+        let item_place = &mut self.items.items[item_index];
+
         // Check for duplicates.
-        if let Some(original_def_id) = self.items.items[item_index] {
+        if let Some(original_def_id) = *item_place {
             if original_def_id != item_def_id {
                 let name = LangItem::from_u32(item_index as u32).unwrap().name();
                 let mut err = match self.tcx.hir().span_if_local(item_def_id) {
@@ -248,7 +194,97 @@ impl<'a, 'tcx> LanguageItemCollector<'a, 'tcx> {
         }
 
         // Matched.
-        self.items.items[item_index] = Some(item_def_id);
+        *item_place = Some(item_def_id);
+    }
+
+    /// Emits a diagnostic error when `value` is an unknown lang item.
+    fn unknown_lang_item(&self, value: Symbol, span: Span) {
+        struct_span_err!(
+            self.tcx.sess, span, E0522,
+            "definition of an unknown language item: `{}`",
+            value
+        )
+        .span_label(span, format!("definition of unknown language item `{}`", value))
+        .emit();
+    }
+
+    /// Known lang item with attribute on incorrect target.
+    fn wrong_location(&self, value: Symbol, span: Span, expected: Location, actual: Location) {
+        struct_span_err!(
+            self.tcx.sess, span, E0718,
+            "`{}` language item must be applied to a {}",
+            value, expected,
+        )
+        .span_label(span,
+            format!(
+                "attribute should be applied to a {}, not a {}",
+                expected, actual,
+            ),
+        ).emit();
+    }
+
+    /// The item form does not admit language items.
+    fn lang_items_not_allowed_here(&self, span: Span) {
+        struct_span_err!(self.tcx.sess, span, E0719, "item cannot be a language item").emit();
+    }
+
+    /// Visit an item-like object and possibly collect it as a lang item.
+    /// It has to have at least a sequence of attributes to scan for ´#[lang(..)]`.
+    /// The `DefId` that is collected is determined by the given `HirId`.
+    /// Finally, the `locator` determines the `Location` of the `HirId`
+    /// or returns `None` should the location be invalid.
+    fn visit_item_like(
+        &mut self,
+        attrs: &[ast::Attribute],
+        hir_id: hir::HirId,
+        locator: impl FnOnce() -> Option<Location>
+    ) {
+        if let Some((value, span)) = extract(attrs) {
+            if let Some(actual) = locator() {
+                match self.item_refs.get(&*value.as_str()).cloned() {
+                    Some((item_index, expected)) if actual == expected => {
+                        // Known lang item with attribute on correct location.
+                        let def_id = self.tcx.hir().local_def_id_from_hir_id(hir_id);
+                        self.collect_item(item_index, def_id);
+                    },
+                    Some((_, expected)) => self.wrong_location(value, span, expected, actual),
+                    _ => self.unknown_lang_item(value, span),
+                }
+            } else {
+                self.lang_items_not_allowed_here(span);
+            }
+        }
+    }
+}
+
+impl ItemLikeVisitor<'_> for LanguageItemCollector<'_, '_> {
+    fn visit_item(&mut self, item: &hir::Item) {
+        use hir::ItemKind::*;
+        self.visit_item_like(&item.attrs, item.hir_id, || Some(match item.node {
+            Enum(..) => Location::Enum,
+            Fn(..) => Location::Fn,
+            Impl(..) => Location::Impl,
+            Static(..) => Location::Static,
+            Struct(..) => Location::Struct,
+            Trait(..) => Location::Trait,
+            _ => return None,
+        }))
+    }
+
+    fn visit_impl_item(&mut self, item: &hir::ImplItem) {
+        use hir::ImplItemKind::*;
+        self.visit_item_like(&item.attrs, item.hir_id, || Some(match item.node {
+            Method(..) => Location::Fn,
+            _ => return None,
+        }))
+    }
+
+    fn visit_trait_item(&mut self, item: &hir::TraitItem) {
+        use hir::TraitItemKind::*;
+        self.visit_item_like(&item.attrs, item.hir_id, || Some(match item.node {
+            Method(..) => Location::Fn,
+            _ => return None,
+        }))
     }
 }
 
@@ -265,7 +301,7 @@ pub fn extract(attrs: &[ast::Attribute]) -> Option<(Symbol, Span)> {
 }
 
 /// Traverse and collect all the lang items in all crates.
-pub fn collect<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>) -> LanguageItems {
+pub fn collect<'tcx>(tcx: TyCtxt<'_, 'tcx, 'tcx>) -> LanguageItems {
     // Initialize the collector.
     let mut collector = LanguageItemCollector::new(tcx);
 
@@ -286,10 +322,6 @@ pub fn collect<'a, 'tcx>(tcx: TyCtxt<'a, 'tcx, 'tcx>) -> LanguageItems {
     weak_lang_items::check_crate(tcx, &mut items);
 
     items
-}
-
-// End of the macro
-    }
 }
 
 language_item_table! {
@@ -448,13 +480,17 @@ language_item_table! {
 
     Arc,                         "arc",                arc,                     Location::Struct;
     Rc,                          "rc",                 rc,                      Location::Struct;
+
+    // Things used in lowering.
+    RangeInclusiveNew,           "range_inclusive",    range_inclusive_fn,      Location::Fn;
 }
 
-impl<'a, 'tcx, 'gcx> TyCtxt<'a, 'tcx, 'gcx> {
+impl TyCtxt<'_, '_, '_> {
     /// Returns the `DefId` for a given `LangItem`.
     /// If not found, fatally abort compilation.
     pub fn require_lang_item(&self, lang_item: LangItem) -> DefId {
-        self.lang_items().require(lang_item).unwrap_or_else(|msg| {
+        let items = self.lang_items();
+        items.require(lang_item).unwrap_or_else(|msg| {
             self.sess.fatal(&msg)
         })
     }
