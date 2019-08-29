@@ -68,6 +68,7 @@ impl<T: Sized> Unique<T> {
     /// some other means.
     // FIXME: rename to dangling() to match NonNull?
     #[inline]
+    #[cfg_attr(not(boostrap_stdarch_ignore_this), rustc_force_min_const_fn)]
     pub const fn empty() -> Self {
         unsafe {
             Unique::new_unchecked(mem::align_of::<T>() as *mut T)
@@ -83,6 +84,7 @@ impl<T: ?Sized> Unique<T> {
     ///
     /// `ptr` must be non-null.
     #[inline]
+    #[cfg_attr(not(boostrap_stdarch_ignore_this), rustc_force_min_const_fn)]
     pub const unsafe fn new_unchecked(ptr: *mut T) -> Self {
         Unique { pointer: ptr as _, _marker: PhantomData }
     }
