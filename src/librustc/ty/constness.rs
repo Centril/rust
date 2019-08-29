@@ -7,10 +7,17 @@ use crate::hir::map::blocks::FnLikeNode;
 use syntax::attr;
 
 impl<'tcx> TyCtxt<'tcx> {
-    /// Whether the `def_id` counts as const fn in your current crate, considering all active
-    /// feature gates
+    /// Whether the `def_id` counts as `const fn` in your current crate,
+    /// considering all active feature gates.
     pub fn is_const_fn(self, def_id: DefId) -> bool {
-        self.is_const_fn_raw(def_id) && match self.is_unstable_const_fn(def_id) {
+        self.is_const_fn_raw(def_id) && (
+            self.is_unstable_const_fn_enabled(def_id)
+                || self.has_attr(def_id, sym::rustc_force_min_const_fn)
+        )
+    }
+
+    fn is_unstable_const_fn_enabled(self, def_id: DefId) -> bool {
+        match self.is_unstable_const_fn(def_id) {
             Some(feature_name) => {
                 // has a `rustc_const_unstable` attribute, check whether the user enabled the
                 // corresponding feature gate, const_constructor is not a lib feature, so has
