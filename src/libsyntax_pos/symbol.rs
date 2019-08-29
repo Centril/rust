@@ -577,6 +577,7 @@ symbols! {
         rustc_dump_user_substs,
         rustc_error,
         rustc_expected_cgu_reuse,
+        rustc_force_min_const_fn,
         rustc_if_this_changed,
         rustc_inherit_overflow_checks,
         rustc_layout,

@@ -432,6 +432,7 @@ pub const BUILTIN_ATTRIBUTES: &[BuiltinAttribute] = &[
     rustc_attr!(rustc_promotable, Whitelisted, template!(Word), IMPL_DETAIL),
     rustc_attr!(rustc_allow_const_fn_ptr, Whitelisted, template!(Word), IMPL_DETAIL),
     rustc_attr!(rustc_args_required_const, Whitelisted, template!(List: "N"), INTERAL_UNSTABLE),
+    rustc_attr!(rustc_force_min_const_fn, Whitelisted, template!(Word), INTERAL_UNSTABLE),
 
     // ==========================================================================
     // Internal attributes, Layout related:

@@ -42,21 +42,27 @@ impl<'tcx> TyCtxt<'tcx> {
 
     /// Returns `true` if this function must conform to `min_const_fn`
     pub fn is_min_const_fn(self, def_id: DefId) -> bool {
-        // Bail out if the signature doesn't contain `const`
+        // Bail out if the signature doesn't contain `const`.
         if !self.is_const_fn_raw(def_id) {
             return false;
         }
 
+        if self.has_attr(def_id, sym::rustc_force_min_const_fn) {
+            // The `const fn` has `#[rustc_force_min_const_fn]`.
+            // We have been ordered to interpret this as a `min_const_fn` no matter what.
+            return true;
+        }
+
         if self.features().staged_api {
-            // in order for a libstd function to be considered min_const_fn
-            // it needs to be stable and have no `rustc_const_unstable` attribute
+            // For a libstd function to be considered `min_const_fn`,
+            // it needs to be stable and have no `rustc_const_unstable` attribute.
             match self.lookup_stability(def_id) {
-                // stable functions with unstable const fn aren't `min_const_fn`
+                // Stable functions with `rustc_const_unstable` aren't `min_const_fn`.
                 Some(&attr::Stability { const_stability: Some(_), .. }) => false,
-                // unstable functions don't need to conform
+                // Unstable functions don't need to conform.
                 Some(&attr::Stability { ref level, .. }) if level.is_unstable() => false,
-                // everything else needs to conform, because it would be callable from
-                // other `min_const_fn` functions
+                // Everything else needs to conform, because it would be callable from
+                // other `min_const_fn` functions.
                 _ => true,
             }
         } else {
