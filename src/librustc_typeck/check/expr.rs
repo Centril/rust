@@ -1025,18 +1025,13 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         fields: &'tcx [hir::Field],
         base_expr: &'tcx Option<P<hir::Expr>>,
     ) -> Ty<'tcx> {
-        // Find the relevant variant
-        let (variant, adt_ty) =
-            if let Some(variant_ty) = self.check_struct_path(qpath, expr.hir_id) {
-                variant_ty
-            } else {
+        // Find the relevant variant.
+        let (variant, adt_ty) = match self.check_struct_path(qpath, expr.hir_id) {
+            Some(variant_ty) => variant_ty,
+            None => {
                 self.check_struct_fields_on_error(fields, base_expr);
                 return self.tcx.types.err;
-            };
-
-        let path_span = match *qpath {
-            QPath::Resolved(_, ref path) => path.span,
-            QPath::TypeRelative(ref qself, _) => qself.span
+            }
         };
 
         // Prohibit struct expressions when non-exhaustive flag is set.
@@ -1047,8 +1042,15 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                       adt.variant_descr());
         }
 
-        let error_happened = self.check_expr_struct_fields(adt_ty, expected, expr.hir_id, path_span,
-                                                           variant, fields, base_expr.is_none());
+        let error_happened = self.check_expr_struct_fields(
+            adt_ty,
+            expected,
+            expr.hir_id,
+            qpath.path_span(),
+            variant,
+            fields,
+            base_expr.is_none(),
+        );
         if let &Some(ref base_expr) = base_expr {
             // If check_expr_struct_fields hit an error, do not attempt to populate
             // the fields with the base_expr. This could cause us to hit errors later

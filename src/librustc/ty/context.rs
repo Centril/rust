@@ -426,11 +426,16 @@ impl<'tcx> TypeckTables<'tcx> {
     }
 
     /// Returns the final resolution of a `QPath` in an `Expr` or `Pat` node.
-    pub fn qpath_res(&self, qpath: &hir::QPath, id: hir::HirId) -> Res {
+    pub fn qpath_res(&self, tcx: TyCtxt<'tcx>, qpath: &hir::QPath, id: hir::HirId) -> Res {
         match *qpath {
             hir::QPath::Resolved(_, ref path) => path.res,
             hir::QPath::TypeRelative(..) => self.type_dependent_def(id)
                 .map_or(Res::Err, |(kind, def_id)| Res::Def(kind, def_id)),
+            hir::QPath::Lang(item, span, _) => {
+                let def_id = tcx.require_lang_item(item, Some(span));
+                let def_kind = tcx.def_kind(def_id).unwrap();
+                Res::Def(def_kind, def_id)
+            }
         }
     }
 

@@ -194,22 +194,20 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
 
     /// Given a path `path` that refers to an item `I` with the declared generics `decl_generics`,
     /// returns an appropriate set of substitutions for this particular reference to `I`.
-    pub fn ast_path_substs_for_ty(&self,
+    pub fn ast_path_substs_for_ty(
+        &self,
         span: Span,
         def_id: DefId,
-        item_segment: &hir::PathSegment)
-        -> SubstsRef<'tcx>
-    {
+        args: hir::SegmentArgs<'_>,
+    ) -> SubstsRef<'tcx> {
         let (substs, assoc_bindings, _) = self.create_substs_for_ast_path(
             span,
             def_id,
-            item_segment.generic_args(),
-            item_segment.infer_args,
+            args.args,
+            args.infer_args,
             None,
         );
-
         assoc_bindings.first().map(|b| Self::prohibit_assoc_ty_binding(self.tcx(), b.span));
-
         substs
     }
 
@@ -1196,17 +1194,10 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
         Ok(())
     }
 
-    fn ast_path_to_ty(&self,
-        span: Span,
-        did: DefId,
-        item_segment: &hir::PathSegment)
-        -> Ty<'tcx>
-    {
-        let substs = self.ast_path_substs_for_ty(span, did, item_segment);
-        self.normalize_ty(
-            span,
-            self.tcx().at(span).type_of(did).subst(self.tcx(), substs)
-        )
+    crate fn ast_path_to_ty(&self, span: Span, did: DefId, args: hir::SegmentArgs<'_>) -> Ty<'tcx> {
+        let substs = self.ast_path_substs_for_ty(span, did, args);
+        let ty = self.tcx().at(span).type_of(did).subst(self.tcx(), substs);
+        self.normalize_ty(span, ty)
     }
 
     /// Transform a `PolyTraitRef` into a `PolyExistentialTraitRef` by
@@ -1780,50 +1771,58 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
         self.normalize_ty(span, tcx.mk_projection(item_def_id, trait_ref.substs))
     }
 
-    pub fn prohibit_generics<'a, T: IntoIterator<Item = &'a hir::PathSegment>>(
-            &self, segments: T) -> bool {
+    pub fn prohibit_generics<'a>(
+        &self,
+        segments: impl IntoIterator<Item = &'a hir::PathSegment>,
+    ) -> bool {
+        segments.into_iter().fold(false, |has_err, segment| {
+            has_err | self.prohibit_generics_in_args(segment.generic_args())
+        })
+    }
+
+    pub fn prohibit_generics_in_args(&self, args: &hir::GenericArgs) -> bool {
         let mut has_err = false;
-        for segment in segments {
-            let (mut err_for_lt, mut err_for_ty, mut err_for_ct) = (false, false, false);
-            for arg in &segment.generic_args().args {
-                let (span, kind) = match arg {
-                    hir::GenericArg::Lifetime(lt) => {
-                        if err_for_lt { continue }
-                        err_for_lt = true;
-                        has_err = true;
-                        (lt.span, "lifetime")
-                    }
-                    hir::GenericArg::Type(ty) => {
-                        if err_for_ty { continue }
-                        err_for_ty = true;
-                        has_err = true;
-                        (ty.span, "type")
-                    }
-                    hir::GenericArg::Const(ct) => {
-                        if err_for_ct { continue }
-                        err_for_ct = true;
-                        (ct.span, "const")
-                    }
-                };
-                let mut err = struct_span_err!(
-                    self.tcx().sess,
-                    span,
-                    E0109,
-                    "{} arguments are not allowed for this type",
-                    kind,
-                );
-                err.span_label(span, format!("{} argument not allowed", kind));
-                err.emit();
-                if err_for_lt && err_for_ty && err_for_ct {
-                    break;
+
+        let (mut err_for_lt, mut err_for_ty, mut err_for_ct) = (false, false, false);
+        for arg in &args.args {
+            let (span, kind) = match arg {
+                hir::GenericArg::Lifetime(lt) => {
+                    if err_for_lt { continue }
+                    err_for_lt = true;
+                    has_err = true;
+                    (lt.span, "lifetime")
                 }
-            }
-            for binding in &segment.generic_args().bindings {
-                has_err = true;
-                Self::prohibit_assoc_ty_binding(self.tcx(), binding.span);
+                hir::GenericArg::Type(ty) => {
+                    if err_for_ty { continue }
+                    err_for_ty = true;
+                    has_err = true;
+                    (ty.span, "type")
+                }
+                hir::GenericArg::Const(ct) => {
+                    if err_for_ct { continue }
+                    err_for_ct = true;
+                    (ct.span, "const")
+                }
+            };
+            let mut err = struct_span_err!(
+                self.tcx().sess,
+                span,
+                E0109,
+                "{} arguments are not allowed for this type",
+                kind,
+            );
+            err.span_label(span, format!("{} argument not allowed", kind));
+            err.emit();
+            if err_for_lt && err_for_ty && err_for_ct {
                 break;
             }
         }
+        for binding in &args.bindings {
+            has_err = true;
+            Self::prohibit_assoc_ty_binding(self.tcx(), binding.span);
+            break;
+        }
+
         has_err
     }
 
@@ -1981,13 +1980,10 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
             Res::Def(DefKind::OpaqueTy, did) => {
                 // Check for desugared `impl Trait`.
                 assert!(ty::is_impl_trait_defn(tcx, did).is_none());
-                let item_segment = path.segments.split_last().unwrap();
-                self.prohibit_generics(item_segment.1);
-                let substs = self.ast_path_substs_for_ty(span, did, item_segment.0);
-                self.normalize_ty(
-                    span,
-                    tcx.mk_opaque(did, substs),
-                )
+                let (last_segs, init_segs) = path.segments.split_last().unwrap();
+                self.prohibit_generics(init_segs);
+                let substs = self.ast_path_substs_for_ty(span, did, last_segs.segment_args());
+                self.normalize_ty(span, tcx.mk_opaque(did, substs))
             }
             Res::Def(DefKind::Enum, did)
             | Res::Def(DefKind::TyAlias, did)
@@ -1996,7 +1992,7 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
             | Res::Def(DefKind::ForeignTy, did) => {
                 assert_eq!(opt_self_ty, None);
                 self.prohibit_generics(path.segments.split_last().unwrap().1);
-                self.ast_path_to_ty(span, did, path.segments.last().unwrap())
+                self.ast_path_to_ty(span, did, path.segments.last().unwrap().segment_args())
             }
             Res::Def(kind @ DefKind::Variant, def_id) if permit_variants => {
                 // Convert "variant type" as if it were a real type.
@@ -2016,7 +2012,7 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
                 }));
 
                 let PathSeg(def_id, index) = path_segs.last().unwrap();
-                self.ast_path_to_ty(span, *def_id, &path.segments[*index])
+                self.ast_path_to_ty(span, *def_id, path.segments[*index].segment_args())
             }
             Res::Def(DefKind::TyParam, def_id) => {
                 assert_eq!(opt_self_ty, None);
@@ -2110,9 +2106,7 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
             }
             hir::TyKind::Path(hir::QPath::Resolved(ref maybe_qself, ref path)) => {
                 debug!("ast_ty_to_ty: maybe_qself={:?} path={:?}", maybe_qself, path);
-                let opt_self_ty = maybe_qself.as_ref().map(|qself| {
-                    self.ast_ty_to_ty(qself)
-                });
+                let opt_self_ty = maybe_qself.as_ref().map(|qself| self.ast_ty_to_ty(qself));
                 self.res_to_ty(opt_self_ty, path, false)
             }
             hir::TyKind::Def(item_id, ref lifetimes) => {
@@ -2129,7 +2123,14 @@ impl<'o, 'tcx> dyn AstConv<'tcx> + 'o {
                     Res::Err
                 };
                 self.associated_path_to_ty(ast_ty.hir_id, ast_ty.span, ty, res, segment, false)
-                    .map(|(ty, _, _)| ty).unwrap_or(tcx.types.err)
+                    .map(|(ty, _, _)| ty)
+                    .unwrap_or(tcx.types.err)
+            }
+            hir::TyKind::Path(hir::QPath::Lang(item, span, ref args)) => {
+                let def_id = tcx.require_lang_item(item, Some(span));
+                let args = hir::generic_args_or_dummy(args.as_deref());
+                let args = hir::SegmentArgs { args, infer_args: true };
+                self.ast_path_to_ty(span, def_id, args)
             }
             hir::TyKind::Array(ref ty, ref length) => {
                 let length = self.ast_const_to_const(length, tcx.types.usize);

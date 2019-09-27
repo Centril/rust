@@ -321,7 +321,7 @@ fn check_expr_kind<'a, 'tcx>(
             }
         }
         hir::ExprKind::Path(ref qpath) => {
-            let res = v.tables.qpath_res(qpath, e.hir_id);
+            let res = v.tables.qpath_res(v.tcx, qpath, e.hir_id);
             match res {
                 Res::Def(DefKind::Ctor(..), _)
                 | Res::Def(DefKind::Fn, _)
@@ -386,7 +386,7 @@ fn check_expr_kind<'a, 'tcx>(
             }
             // The callee is an arbitrary expression, it doesn't necessarily have a definition.
             let def = if let hir::ExprKind::Path(ref qpath) = callee.kind {
-                v.tables.qpath_res(qpath, callee.hir_id)
+                v.tables.qpath_res(v.tcx, qpath, callee.hir_id)
             } else {
                 Res::Err
             };

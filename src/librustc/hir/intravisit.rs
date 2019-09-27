@@ -652,6 +652,10 @@ pub fn walk_qpath<'v, V: Visitor<'v>>(visitor: &mut V, qpath: &'v QPath, id: Hir
             visitor.visit_ty(qself);
             visitor.visit_path_segment(span, segment);
         }
+        QPath::Lang(.., path_span, Some(ref args)) => {
+            visitor.visit_generic_args(path_span, args);
+        }
+        QPath::Lang(..) => {}
     }
 }
 

@@ -13,6 +13,7 @@ pub use self::UnsafeSource::*;
 use crate::hir::def::{Res, DefKind};
 use crate::hir::def_id::{DefId, DefIndex, LocalDefId, CRATE_DEF_INDEX};
 use crate::hir::ptr::P;
+use crate::middle::lang_items::LangItem;
 use crate::mir::mono::Linkage;
 use crate::ty::AdtKind;
 use crate::ty::query::Providers;
@@ -367,6 +368,12 @@ pub struct PathSegment {
     pub infer_args: bool,
 }
 
+/// A view of `PathSegment` including only `args` and `infer_args`.
+pub struct SegmentArgs<'a> {
+    pub args: &'a GenericArgs,
+    pub infer_args: bool,
+}
+
 impl PathSegment {
     /// Converts an identifier to the corresponding segment.
     pub fn from_ident(ident: Ident) -> PathSegment {
@@ -400,12 +407,24 @@ impl PathSegment {
     }
 
     pub fn generic_args(&self) -> &GenericArgs {
-        if let Some(ref args) = self.args {
-            args
-        } else {
-            const DUMMY: &GenericArgs = &GenericArgs::none();
-            DUMMY
+        generic_args_or_dummy(self.args.as_deref())
+    }
+
+    /// Construct a view of this `PathSegment` including the generic `args` and
+    /// whether `infer_args`. See the definition of `PathSegment` for more info.
+    pub fn segment_args(&self) -> SegmentArgs<'_> {
+        SegmentArgs {
+            args: self.generic_args(),
+            infer_args: self.infer_args,
         }
+    }
+}
+
+pub fn generic_args_or_dummy(args: Option<&GenericArgs>) -> &GenericArgs {
+    const DUMMY: &GenericArgs = &GenericArgs::none();
+    match args {
+        None => DUMMY,
+        Some(it) => it,
     }
 }
 
@@ -1488,6 +1507,13 @@ impl Expr {
                 }
             }
 
+            ExprKind::Path(QPath::Lang(item, ..)) => {
+                match item.target() {
+                    crate::hir::check_attr::Target::Static => true,
+                    _ => false,
+                }
+            }
+
             ExprKind::Type(ref e, _) => {
                 e.is_place_expr()
             }
@@ -1660,7 +1686,22 @@ pub enum QPath {
     /// UFCS source paths can desugar into this, with `Vec::new` turning into
     /// `<Vec>::new`, and `T::X::Y::method` into `<<<T>::X>::Y>::method`,
     /// the `X` and `Y` nodes each being a `TyKind::Path(QPath::TypeRelative(..))`.
-    TypeRelative(P<Ty>, P<PathSegment>)
+    TypeRelative(P<Ty>, P<PathSegment>),
+
+    /// A reference to a `#[lang = "foo"]` item.
+    /// This is matched up with the corresponding `DefId` lazily.
+    Lang(LangItem, Span, Option<P<GenericArgs>>),
+}
+
+impl QPath {
+    /// Returns the `Span` of the path.
+    pub fn path_span(&self) -> Span {
+        match self {
+            QPath::Resolved(_, path) => path.span,
+            QPath::TypeRelative(qself, _) => qself.span,
+            QPath::Lang(_, span, _) => *span,
+        }
+    }
 }
 
 /// Hints at the original code for a let statement.

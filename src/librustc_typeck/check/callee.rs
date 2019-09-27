@@ -320,7 +320,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                     let mut inner_callee_path = None;
                     let def = match callee.kind {
                         hir::ExprKind::Path(ref qpath) => {
-                            self.tables.borrow().qpath_res(qpath, callee.hir_id)
+                            self.tables.borrow().qpath_res(self.tcx, qpath, callee.hir_id)
                         }
                         hir::ExprKind::Call(ref inner_callee, _) => {
                             // If the call spans more than one line and the callee kind is
@@ -341,7 +341,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                                 inner_callee_path = Some(inner_qpath);
                                 self.tables
                                     .borrow()
-                                    .qpath_res(inner_qpath, inner_callee.hir_id)
+                                    .qpath_res(self.tcx, inner_qpath, inner_callee.hir_id)
                             } else {
                                 Res::Err
                             }

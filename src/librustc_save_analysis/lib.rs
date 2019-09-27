@@ -632,7 +632,7 @@ impl<'l, 'tcx> SaveContext<'l, 'tcx> {
                 kind: hir::ExprKind::Struct(ref qpath, ..),
                 ..
             }) => {
-                self.tables.qpath_res(qpath, hir_id)
+                self.tables.qpath_res(self.tcx, qpath, hir_id)
             }
 
             Node::Expr(&hir::Expr {
@@ -655,7 +655,7 @@ impl<'l, 'tcx> SaveContext<'l, 'tcx> {
                 kind: hir::TyKind::Path(ref qpath),
                 ..
             }) => {
-                self.tables.qpath_res(qpath, hir_id)
+                self.tables.qpath_res(self.tcx, qpath, hir_id)
             }
 
             Node::Binding(&hir::Pat {

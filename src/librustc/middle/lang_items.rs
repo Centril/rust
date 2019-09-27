@@ -41,9 +41,16 @@ impl LangItem {
     /// Returns the `name` in `#[lang = "$name"]`.
     /// For example, `LangItem::EqTraitLangItem`,
     /// that is `#[lang = "eq"]` would result in `"eq"`.
-    fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             $( $variant => $name, )*
+        }
+    }
+
+    /// Returns the `Target` where the lang item may be attached.
+    crate fn target(self) -> Target {
+        match self {
+            $( $variant => $target, )*
         }
     }
 }

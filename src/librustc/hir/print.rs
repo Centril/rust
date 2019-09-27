@@ -1535,6 +1535,14 @@ impl<'a> State<'a> {
                                         item_segment.infer_args,
                                         colons_before_params)
             }
+            hir::QPath::Lang(item, _, ref args) => {
+                self.s.word(format!("#[lang = \"{}\"]", item.name()));
+                self.print_generic_args(
+                    hir::generic_args_or_dummy(args.as_deref()),
+                    true,
+                    colons_before_params,
+                );
+            }
         }
     }
 

@@ -3648,10 +3648,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                              qpath: &QPath,
                              hir_id: hir::HirId)
                              -> Option<(&'tcx ty::VariantDef,  Ty<'tcx>)> {
-        let path_span = match *qpath {
-            QPath::Resolved(_, ref path) => path.span,
-            QPath::TypeRelative(ref qself, _) => qself.span
-        };
+        let path_span = qpath.path_span();
         let (def, ty) = self.finish_resolving_struct_path(qpath, path_span, hir_id);
         let variant = match def {
             Res::Err => {
@@ -3744,12 +3741,23 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
                 (result.map(|(kind, def_id)| Res::Def(kind, def_id)).unwrap_or(Res::Err), ty)
             }
+            QPath::Lang(item, span, ref args) => {
+                let def_id = self.tcx().require_lang_item(item, Some(span));
+                let def_kind = self.tcx().def_kind(def_id).unwrap();
+                let res = Res::Def(def_kind, def_id);
+
+                let args = hir::generic_args_or_dummy(args.as_deref());
+                let args = hir::SegmentArgs { args, infer_args: true };
+                let ty = AstConv::ast_path_to_ty(self, span, def_id, args);
+
+                (res, ty)
+            }
         }
     }
 
     /// Resolves an associated value path into a base type and associated constant, or method
     /// resolution. The newly resolved definition is written into `type_dependent_defs`.
-    pub fn resolve_ty_and_res_ufcs<'b>(&self,
+    fn resolve_ty_and_res_ufcs<'b>(&self,
                                        qpath: &'b QPath,
                                        hir_id: hir::HirId,
                                        span: Span)
@@ -3764,6 +3772,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             }
             QPath::TypeRelative(ref qself, ref segment) => {
                 (self.to_ty(qself), qself, segment)
+            }
+            QPath::Lang(..) => {
+                // TODO
+                unimplemented!()
             }
         };
         if let Some(&cached_result) = self.tables.borrow().type_dependent_defs().get(hir_id) {
