@@ -415,8 +415,7 @@ impl LoweringContext<'_> {
         e: hir::Expr,
         unstable_span: Span,
     ) -> P<hir::Expr> {
-        let path = &[sym::ops, sym::Try, method];
-        let from_err = P(self.expr_std_path(unstable_span, path, None, ThinVec::new()));
+        let from_err = P(self.expr_std_path(unstable_span, &[sym::ops, sym::Try, method]));
         P(self.expr_call(e.span, from_err, hir_vec![e]))
     }
 
@@ -473,20 +472,13 @@ impl LoweringContext<'_> {
             attrs: ThinVec::new(),
         };
 
-        // `future::from_generator`:
+        // `future::from_generator(generator)`:
         let unstable_span = self.mark_span_with_reason(
             DesugaringKind::Async,
             span,
             self.allow_gen_future.clone(),
         );
-        let gen_future = self.expr_std_path(
-            unstable_span,
-            &[sym::future, sym::from_generator],
-            None,
-            ThinVec::new()
-        );
-
-        // `future::from_generator(generator)`:
+        let gen_future = self.expr_std_path(unstable_span, &[sym::future, sym::from_generator]);
         hir::ExprKind::Call(P(gen_future), hir_vec![generator])
     }
 
@@ -1347,7 +1339,7 @@ impl LoweringContext<'_> {
         path_components: &[Symbol],
         args: hir::HirVec<hir::Expr>,
     ) -> hir::Expr {
-        let path = P(self.expr_std_path(span, path_components, None, ThinVec::new()));
+        let path = P(self.expr_std_path(span, path_components));
         self.expr_call(span, path, args)
     }
 
@@ -1376,18 +1368,12 @@ impl LoweringContext<'_> {
         hir::ExprKind::Call(fn_expr, args)
     }
 
-    fn expr_std_path(
-        &mut self,
-        span: Span,
-        components: &[Symbol],
-        params: Option<P<hir::GenericArgs>>,
-        attrs: ThinVec<Attribute>,
-    ) -> hir::Expr {
-        let path = self.std_path(span, components, params, true);
+    fn expr_std_path(&mut self, span: Span, components: &[Symbol]) -> hir::Expr {
+        let path = self.std_path(span, components, None, true);
         self.expr(
             span,
             hir::ExprKind::Path(hir::QPath::Resolved(None, P(path))),
-            attrs,
+            ThinVec::new(),
         )
     }
 
