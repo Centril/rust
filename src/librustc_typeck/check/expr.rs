@@ -294,7 +294,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 ty
             }
             ExprKind::DropTemps(ref e) => {
-                self.check_expr_with_expectation(e, expected)
+                self.check_expr_drop_temps(e, expected)
             }
             ExprKind::Array(ref args) => {
                 self.check_expr_array(args, expected, expr)
@@ -447,7 +447,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let needs = Needs::maybe_mut_place(mutbl);
         let ty = self.check_expr_with_expectation_and_needs(&oprnd, hint, needs);
 
-        let tm = ty::TypeAndMut { ty: ty, mutbl: mutbl };
+        let tm = ty::TypeAndMut { ty, mutbl };
         if tm.ty.references_error() {
             self.tcx.types.err
         } else {
@@ -713,6 +713,19 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     /// Type check assignment expression `expr` of form `lhs = rhs`.
     /// The expected type is `()` and is passsed to the function for the purposes of diagnostics.
+    ///
+    /// -------------------------
+    ///
+    /// Inference rule:
+    ///
+    /// ```
+    /// Γ ⊢mut_place lhs_e ⇒ lhs_ty
+    /// Γ ⊢coercible rhs ⇐ lhs_ty
+    /// Γ ⊢is_place_expr lhs
+    /// Γ ⊢implemented lhs_ty : Sized
+    /// ─────────────────────────────
+    /// Γ ⊢ lhs = rhs ⇒ ()
+    /// ```
     fn check_expr_assign(
         &self,
         expr: &'tcx hir::Expr,
@@ -921,6 +934,17 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         }
     }
 
+    /// Inference rule:
+    ///
+    /// ```
+    /// Γ ⊢ e ⇔ expected
+    /// ───────────────────────────
+    /// Γ ⊢ DropTemps(e) ⇔ expected
+    /// ```
+    fn check_expr_drop_temps(&self, e: &'tcx hir::Expr, expected: Expectation<'tcx>) -> Ty<'tcx> {
+        self.check_expr_with_expectation(e, expected)
+    }
+
     fn check_expr_array(
         &self,
         args: &'tcx [hir::Expr],
@@ -1020,6 +1044,27 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         }
     }
 
+    /// Inference rule:
+    ///
+    /// 1) Expected type can be resolved to a tuple type.
+    ///
+    /// ```
+    /// Γ ⊢ expected ~> (ety_0, ..., ety_n)
+    /// ∀ i ∈ [0, n). Γ ⊢coercible elts_i ⇐ ety_i
+    /// Γ ⊢implemented (ety_0, ..., ety_n) : Sized
+    /// ───────────────────────────────────────────────
+    /// Γ ⊢ (elts_0, ..., elts_n) ⇐ (ety_0, ..., ety_n)
+    /// ```
+    ///
+    /// 2) Otherwise, using syntesizing mode:
+    ///
+    /// ```
+    /// Γ ⊢ expected ~\> (ety_0, ..., ety_n)
+    /// ∀ i ∈ [0, n). Γ ⊢ elts_i ⇒ ety_i
+    /// Γ ⊢implemented (ety_0, ..., ety_n) : Sized
+    /// ───────────────────────────────────────────────
+    /// Γ ⊢ (elts_0, ..., elts_n) ⇒ (ety_0, ..., ety_n)
+    /// ```
     fn check_expr_tuple(
         &self,
         elts: &'tcx [hir::Expr],
@@ -1699,6 +1744,24 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         }
     }
 
+    /// Inference rule:
+    ///
+    /// 1) General rule for `yield`:
+    ///
+    /// ```
+    /// Γ; yield_ty ⊢coercible value ⇐ yield_ty
+    /// ───────────────────────────────────────
+    /// Γ; yield_ty ⊢ yield value ⇒ ()
+    /// ```
+    ///
+    /// 2) If the source is from `.await`:
+    ///
+    /// ```
+    /// Γ ⊢ yield_source(expr) = Await
+    /// Γ ⊢coercible value ⇐ ()
+    /// ──────────────────────────────
+    /// Γ ⊢ yield value ⇒ ()
+    /// ```
     fn check_expr_yield(
         &self,
         value: &'tcx hir::Expr,
