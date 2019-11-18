@@ -45,7 +45,6 @@ use self::borrow_set::{BorrowData, BorrowSet};
 use self::flows::Flows;
 use self::location::LocationTable;
 use self::prefixes::PrefixSet;
-use self::MutateMode::{JustWrite, WriteAndRead};
 use self::mutability_errors::AccessKind;
 
 use self::path_utils::*;
@@ -507,7 +506,6 @@ impl<'cx, 'tcx> DataflowResultsConsumer<'cx, 'tcx> for MirBorrowckCtxt<'cx, 'tcx
                     location,
                     (lhs, span),
                     Shallow(None),
-                    JustWrite,
                     flow_state,
                 );
             }
@@ -537,41 +535,8 @@ impl<'cx, 'tcx> DataflowResultsConsumer<'cx, 'tcx> for MirBorrowckCtxt<'cx, 'tcx
                     location,
                     (place, span),
                     Shallow(None),
-                    JustWrite,
                     flow_state,
                 );
-            }
-            StatementKind::InlineAsm(ref asm) => {
-                for (o, output) in asm.asm.outputs.iter().zip(asm.outputs.iter()) {
-                    if o.is_indirect {
-                        // FIXME(eddyb) indirect inline asm outputs should
-                        // be encoded through MIR place derefs instead.
-                        self.access_place(
-                            location,
-                            (output, o.span),
-                            (Deep, Read(ReadKind::Copy)),
-                            LocalMutationIsAllowed::No,
-                            flow_state,
-                        );
-                        self.check_if_path_or_subpath_is_moved(
-                            location,
-                            InitializationRequiringAction::Use,
-                            (output.as_ref(), o.span),
-                            flow_state,
-                        );
-                    } else {
-                        self.mutate_place(
-                            location,
-                            (output, o.span),
-                            if o.is_rw { Deep } else { Shallow(None) },
-                            if o.is_rw { WriteAndRead } else { JustWrite },
-                            flow_state,
-                        );
-                    }
-                }
-                for (_, input) in asm.inputs.iter() {
-                    self.consume_operand(location, (input, span), flow_state);
-                }
             }
             StatementKind::Nop
             | StatementKind::AscribeUserType(..)
@@ -656,7 +621,6 @@ impl<'cx, 'tcx> DataflowResultsConsumer<'cx, 'tcx> for MirBorrowckCtxt<'cx, 'tcx
                     loc,
                     (drop_place, span),
                     Deep,
-                    JustWrite,
                     flow_state,
                 );
                 self.consume_operand(
@@ -685,7 +649,6 @@ impl<'cx, 'tcx> DataflowResultsConsumer<'cx, 'tcx> for MirBorrowckCtxt<'cx, 'tcx
                         loc,
                         (dest, span),
                         Deep,
-                        JustWrite,
                         flow_state,
                     );
                 }
@@ -752,12 +715,6 @@ impl<'cx, 'tcx> DataflowResultsConsumer<'cx, 'tcx> for MirBorrowckCtxt<'cx, 'tcx
             }
         }
     }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-enum MutateMode {
-    JustWrite,
-    WriteAndRead,
 }
 
 use self::ReadOrWrite::{Activation, Read, Reservation, Write};
@@ -845,7 +802,6 @@ enum LocalMutationIsAllowed {
 
 #[derive(Copy, Clone, Debug)]
 enum InitializationRequiringAction {
-    Update,
     Borrow,
     MatchOn,
     Use,
@@ -862,7 +818,6 @@ struct RootPlace<'d, 'tcx> {
 impl InitializationRequiringAction {
     fn as_noun(self) -> &'static str {
         match self {
-            InitializationRequiringAction::Update => "update",
             InitializationRequiringAction::Borrow => "borrow",
             InitializationRequiringAction::MatchOn => "use", // no good noun
             InitializationRequiringAction::Use => "use",
@@ -873,7 +828,6 @@ impl InitializationRequiringAction {
 
     fn as_verb_in_past_tense(self) -> &'static str {
         match self {
-            InitializationRequiringAction::Update => "updated",
             InitializationRequiringAction::Borrow => "borrowed",
             InitializationRequiringAction::MatchOn => "matched on",
             InitializationRequiringAction::Use => "used",
@@ -1112,23 +1066,10 @@ impl<'cx, 'tcx> MirBorrowckCtxt<'cx, 'tcx> {
         location: Location,
         place_span: (&'cx Place<'tcx>, Span),
         kind: AccessDepth,
-        mode: MutateMode,
         flow_state: &Flows<'cx, 'tcx>,
     ) {
-        // Write of P[i] or *P, or WriteAndRead of any P, requires P init'd.
-        match mode {
-            MutateMode::WriteAndRead => {
-                self.check_if_path_or_subpath_is_moved(
-                    location,
-                    InitializationRequiringAction::Update,
-                    (place_span.0.as_ref(), place_span.1),
-                    flow_state,
-                );
-            }
-            MutateMode::JustWrite => {
-                self.check_if_assigned_path_is_moved(location, place_span, flow_state);
-            }
-        }
+        // Write of P[i] or *P, requires P init'd.
+        self.check_if_assigned_path_is_moved(location, place_span, flow_state);
 
         // Special case: you can assign a immutable local variable
         // (e.g., `x = ...`) so long as it has never been initialized

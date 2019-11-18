@@ -359,19 +359,6 @@ macro_rules! make_mir_visitor {
                             location
                         );
                     }
-                    StatementKind::InlineAsm(asm) => {
-                        for output in & $($mutability)? asm.outputs[..] {
-                            self.visit_place(
-                                output,
-                                PlaceContext::MutatingUse(MutatingUseContext::AsmOutput),
-                                location
-                            );
-                        }
-                        for (span, input) in & $($mutability)? asm.inputs[..] {
-                            self.visit_span(span);
-                            self.visit_operand(input, location);
-                        }
-                    }
                     StatementKind::Retag(kind, place) => {
                         self.visit_retag(kind, place, location);
                     }
@@ -1000,10 +987,6 @@ pub enum NonMutatingUseContext {
 pub enum MutatingUseContext {
     /// Appears as LHS of an assignment.
     Store,
-    /// Can often be treated as a `Store`, but needs to be separate because
-    /// ASM is allowed to read outputs as well, so a `Store`-`AsmOutput` sequence
-    /// cannot be simplified the way a `Store`-`Store` can be.
-    AsmOutput,
     /// Destination of a call.
     Call,
     /// Being dropped.
@@ -1111,8 +1094,7 @@ impl PlaceContext {
     pub fn is_place_assignment(&self) -> bool {
         match *self {
             PlaceContext::MutatingUse(MutatingUseContext::Store) |
-            PlaceContext::MutatingUse(MutatingUseContext::Call) |
-            PlaceContext::MutatingUse(MutatingUseContext::AsmOutput) => true,
+            PlaceContext::MutatingUse(MutatingUseContext::Call) => true,
             _ => false,
         }
     }

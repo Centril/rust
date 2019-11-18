@@ -63,8 +63,7 @@ impl Category {
             | ExprKind::Repeat { .. }
             | ExprKind::Assign { .. }
             | ExprKind::AssignOp { .. }
-            | ExprKind::Yield { .. }
-            | ExprKind::InlineAsm { .. } => Some(Category::Rvalue(RvalueFunc::AsRvalue)),
+            | ExprKind::Yield { .. } => Some(Category::Rvalue(RvalueFunc::AsRvalue)),
 
             ExprKind::Literal { .. } => Some(Category::Constant),
 

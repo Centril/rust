@@ -1492,7 +1492,6 @@ impl<'a, 'tcx> TypeChecker<'a, 'tcx> {
             StatementKind::FakeRead(..)
             | StatementKind::StorageLive(..)
             | StatementKind::StorageDead(..)
-            | StatementKind::InlineAsm { .. }
             | StatementKind::Retag { .. }
             | StatementKind::Nop => {}
         }

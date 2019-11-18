@@ -6,7 +6,7 @@ pub use self::Diagnostic::*;
 use libc::c_uint;
 use crate::value::Value;
 
-use super::{DiagnosticInfo, Twine};
+use super::DiagnosticInfo;
 
 #[derive(Copy, Clone)]
 pub enum OptimizationDiagnosticKind {
@@ -84,37 +84,8 @@ impl OptimizationDiagnostic<'ll> {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct InlineAsmDiagnostic<'ll> {
-    pub cookie: c_uint,
-    pub message: &'ll Twine,
-    pub instruction: Option<&'ll Value>,
-}
-
-impl InlineAsmDiagnostic<'ll> {
-    unsafe fn unpack(di: &'ll DiagnosticInfo) -> Self {
-        let mut cookie = 0;
-        let mut message = None;
-        let mut instruction = None;
-
-        super::LLVMRustUnpackInlineAsmDiagnostic(
-            di,
-            &mut cookie,
-            &mut message,
-            &mut instruction,
-        );
-
-        InlineAsmDiagnostic {
-            cookie,
-            message: message.unwrap(),
-            instruction,
-        }
-    }
-}
-
 pub enum Diagnostic<'ll> {
     Optimization(OptimizationDiagnostic<'ll>),
-    InlineAsm(InlineAsmDiagnostic<'ll>),
     PGO(&'ll DiagnosticInfo),
     Linker(&'ll DiagnosticInfo),
 
@@ -128,8 +99,6 @@ impl Diagnostic<'ll> {
         let kind = super::LLVMRustGetDiagInfoKind(di);
 
         match kind {
-            Dk::InlineAsm => InlineAsm(InlineAsmDiagnostic::unpack(di)),
-
             Dk::OptimizationRemark => {
                 Optimization(OptimizationDiagnostic::unpack(OptimizationRemark, di))
             }

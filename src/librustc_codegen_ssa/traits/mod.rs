@@ -28,7 +28,7 @@ mod type_;
 mod write;
 
 pub use self::abi::{AbiBuilderMethods};
-pub use self::asm::{AsmBuilderMethods, AsmMethods};
+pub use self::asm::AsmMethods;
 pub use self::backend::{Backend, BackendTypes, ExtraBackendMethods};
 pub use self::builder::{BuilderMethods, OverflowOp};
 pub use self::consts::ConstMethods;

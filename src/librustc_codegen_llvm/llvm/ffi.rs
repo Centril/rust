@@ -365,26 +365,6 @@ pub enum MetadataType {
     MD_nonnull = 11,
 }
 
-/// LLVMRustAsmDialect
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub enum AsmDialect {
-    // FIXME: figure out if this variant is needed at all.
-    #[allow(dead_code)]
-    Other,
-    Att,
-    Intel,
-}
-
-impl AsmDialect {
-    pub fn from_generic(asm: syntax::ast::AsmDialect) -> Self {
-        match asm {
-            syntax::ast::AsmDialect::Att => AsmDialect::Att,
-            syntax::ast::AsmDialect::Intel => AsmDialect::Intel
-        }
-    }
-}
-
 /// LLVMRustCodeGenOptLevel
 #[derive(Copy, Clone, PartialEq)]
 #[repr(C)]
@@ -431,7 +411,6 @@ pub enum CodeModel {
 #[allow(dead_code)] // Variants constructed by C++.
 pub enum DiagnosticKind {
     Other,
-    InlineAsm,
     StackSize,
     DebugMetadataVersion,
     SampleProfile,
@@ -1403,18 +1382,6 @@ extern "C" {
                              ElementTypes: *const &'a Type,
                              ElementCount: c_uint,
                              Packed: Bool);
-
-    /// Prepares inline assembly.
-    pub fn LLVMRustInlineAsm(Ty: &Type,
-                             AsmString: *const c_char,
-                             Constraints: *const c_char,
-                             SideEffects: Bool,
-                             AlignStack: Bool,
-                             Dialect: AsmDialect)
-                             -> &Value;
-    pub fn LLVMRustInlineAsmVerify(Ty: &Type,
-                                   Constraints: *const c_char)
-                                   -> bool;
 
     pub fn LLVMRustDebugMetadataVersion() -> u32;
     pub fn LLVMRustVersionMajor() -> u32;

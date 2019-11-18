@@ -244,12 +244,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             ExprKind::Path(ref qpath) => {
                 self.check_expr_path(qpath, expr)
             }
-            ExprKind::InlineAsm(_, ref outputs, ref inputs) => {
-                for expr in outputs.iter().chain(inputs.iter()) {
-                    self.check_expr(expr);
-                }
-                tcx.mk_unit()
-            }
             ExprKind::Break(destination, ref expr_opt) => {
                 self.check_expr_break(destination, expr_opt.as_deref(), expr)
             }

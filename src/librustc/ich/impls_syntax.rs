@@ -55,11 +55,6 @@ impl<'a> ToStableHashKey<StableHashingContext<'a>> for ast::Name {
     }
 }
 
-impl_stable_hash_for!(enum ::syntax::ast::AsmDialect {
-    Att,
-    Intel
-});
-
 impl_stable_hash_for!(enum ::syntax_pos::hygiene::MacroKind {
     Bang,
     Attr,

@@ -270,7 +270,6 @@ pub enum ExprPrecedence {
     Field,
     Index,
     Try,
-    InlineAsm,
     Mac,
 
     Array,
@@ -333,7 +332,6 @@ impl ExprPrecedence {
             ExprPrecedence::Field |
             ExprPrecedence::Index |
             ExprPrecedence::Try |
-            ExprPrecedence::InlineAsm |
             ExprPrecedence::Mac => PREC_POSTFIX,
 
             // Never need parens

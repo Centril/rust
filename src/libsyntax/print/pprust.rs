@@ -2215,65 +2215,6 @@ impl<'a> State<'a> {
                     self.print_expr_maybe_paren(expr, parser::PREC_JUMP);
                 }
             }
-            ast::ExprKind::InlineAsm(ref a) => {
-                self.s.word("asm!");
-                self.popen();
-                self.print_string(&a.asm.as_str(), a.asm_str_style);
-                self.word_space(":");
-
-                self.commasep(Inconsistent, &a.outputs, |s, out| {
-                    let constraint = out.constraint.as_str();
-                    let mut ch = constraint.chars();
-                    match ch.next() {
-                        Some('=') if out.is_rw => {
-                            s.print_string(&format!("+{}", ch.as_str()),
-                                           ast::StrStyle::Cooked)
-                        }
-                        _ => s.print_string(&constraint, ast::StrStyle::Cooked)
-                    }
-                    s.popen();
-                    s.print_expr(&out.expr);
-                    s.pclose();
-                });
-                self.s.space();
-                self.word_space(":");
-
-                self.commasep(Inconsistent, &a.inputs, |s, &(co, ref o)| {
-                    s.print_string(&co.as_str(), ast::StrStyle::Cooked);
-                    s.popen();
-                    s.print_expr(o);
-                    s.pclose();
-                });
-                self.s.space();
-                self.word_space(":");
-
-                self.commasep(Inconsistent, &a.clobbers,
-                                   |s, co| {
-                    s.print_string(&co.as_str(), ast::StrStyle::Cooked);
-                });
-
-                let mut options = vec![];
-                if a.volatile {
-                    options.push("volatile");
-                }
-                if a.alignstack {
-                    options.push("alignstack");
-                }
-                if a.dialect == ast::AsmDialect::Intel {
-                    options.push("intel");
-                }
-
-                if !options.is_empty() {
-                    self.s.space();
-                    self.word_space(":");
-                    self.commasep(Inconsistent, &options,
-                                  |s, &co| {
-                                      s.print_string(co, ast::StrStyle::Cooked);
-                                  });
-                }
-
-                self.pclose();
-            }
             ast::ExprKind::Mac(ref m) => self.print_mac(m),
             ast::ExprKind::Paren(ref e) => {
                 self.popen();

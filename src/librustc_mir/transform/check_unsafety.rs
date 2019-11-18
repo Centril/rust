@@ -101,32 +101,6 @@ impl<'a, 'tcx> Visitor<'tcx> for UnsafetyChecker<'a, 'tcx> {
         self.super_terminator(terminator, location);
     }
 
-    fn visit_statement(&mut self,
-                       statement: &Statement<'tcx>,
-                       location: Location)
-    {
-        self.source_info = statement.source_info;
-        match statement.kind {
-            StatementKind::Assign(..) |
-            StatementKind::FakeRead(..) |
-            StatementKind::SetDiscriminant { .. } |
-            StatementKind::StorageLive(..) |
-            StatementKind::StorageDead(..) |
-            StatementKind::Retag { .. } |
-            StatementKind::AscribeUserType(..) |
-            StatementKind::Nop => {
-                // safe (at least as emitted during MIR construction)
-            }
-
-            StatementKind::InlineAsm { .. } => {
-                self.require_unsafe("use of inline assembly",
-                    "inline assembly is entirely unchecked and can cause undefined behavior",
-                    UnsafetyViolationKind::General)
-            },
-        }
-        self.super_statement(statement, location);
-    }
-
     fn visit_rvalue(&mut self,
                     rvalue: &Rvalue<'tcx>,
                     location: Location)
@@ -282,10 +256,7 @@ impl<'a, 'tcx> Visitor<'tcx> for UnsafetyChecker<'a, 'tcx> {
                 ty::Adt(adt, _) => {
                     if adt.is_union() {
                         if context == PlaceContext::MutatingUse(MutatingUseContext::Store) ||
-                            context == PlaceContext::MutatingUse(MutatingUseContext::Drop) ||
-                            context == PlaceContext::MutatingUse(
-                                MutatingUseContext::AsmOutput
-                            )
+                            context == PlaceContext::MutatingUse(MutatingUseContext::Drop)
                         {
                             let elem_ty = match elem {
                                 ProjectionElem::Field(_, ty) => ty,

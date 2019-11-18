@@ -302,7 +302,6 @@ CloneTypeFoldableAndLiftImpls! {
     ::syntax_pos::symbol::Symbol,
     crate::hir::def::Res,
     crate::hir::def_id::DefId,
-    crate::hir::InlineAsm,
     crate::hir::MatchSource,
     crate::hir::Mutability,
     crate::hir::Unsafety,

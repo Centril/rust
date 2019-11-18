@@ -1,5 +1,4 @@
 use super::abi::AbiBuilderMethods;
-use super::asm::AsmBuilderMethods;
 use super::debuginfo::DebugInfoBuilderMethods;
 use super::intrinsic::IntrinsicCallMethods;
 use super::type_::ArgAbiMethods;
@@ -28,7 +27,6 @@ pub trait BuilderMethods<'a, 'tcx>:
     + ArgAbiMethods<'tcx>
     + AbiBuilderMethods<'tcx>
     + IntrinsicCallMethods<'tcx>
-    + AsmBuilderMethods<'tcx>
     + StaticBuilderMethods
     + HasParamEnv<'tcx>
     + HasTargetSpec

@@ -533,14 +533,6 @@ fn make_mirror_unadjusted<'a, 'tcx>(
             convert_path_expr(cx, expr, res)
         }
 
-        hir::ExprKind::InlineAsm(ref asm, ref outputs, ref inputs) => {
-            ExprKind::InlineAsm {
-                asm,
-                outputs: outputs.to_ref(),
-                inputs: inputs.to_ref(),
-            }
-        }
-
         // Now comes the rote stuff:
         hir::ExprKind::Repeat(ref v, ref count) => {
             let def_id = cx.tcx.hir().local_def_id(count.hir_id);

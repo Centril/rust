@@ -3,7 +3,7 @@ use crate::back::bytecode;
 use crate::back::lto::ThinBuffer;
 use crate::base;
 use crate::consts;
-use crate::llvm::{self, DiagnosticInfo, PassManager, SMDiagnostic};
+use crate::llvm::{self, DiagnosticInfo, PassManager};
 use crate::llvm_util;
 use crate::ModuleLlvm;
 use crate::type_::Type;
@@ -29,7 +29,7 @@ use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
 use std::slice;
-use libc::{c_uint, c_void, c_char, size_t};
+use libc::{c_void, c_char, size_t};
 
 pub const RELOC_MODEL_ARGS : [(&str, llvm::RelocMode); 7] = [
     ("pic", llvm::RelocMode::PIC),
@@ -222,7 +222,6 @@ impl<'a> DiagnosticHandlers<'a> {
                llcx: &'a llvm::Context) -> Self {
         let data = Box::into_raw(Box::new((cgcx, handler)));
         unsafe {
-            llvm::LLVMRustSetInlineAsmDiagnosticHandler(llcx, inline_asm_handler, data.cast());
             llvm::LLVMContextSetDiagnosticHandler(llcx, diagnostic_handler, data.cast());
         }
         DiagnosticHandlers { data, llcx }
@@ -233,32 +232,12 @@ impl<'a> Drop for DiagnosticHandlers<'a> {
     fn drop(&mut self) {
         use std::ptr::null_mut;
         unsafe {
-            llvm::LLVMRustSetInlineAsmDiagnosticHandler(self.llcx, inline_asm_handler, null_mut());
             llvm::LLVMContextSetDiagnosticHandler(self.llcx, diagnostic_handler, null_mut());
             drop(Box::from_raw(self.data));
         }
     }
 }
 
-unsafe extern "C" fn report_inline_asm(cgcx: &CodegenContext<LlvmCodegenBackend>,
-                                       msg: &str,
-                                       cookie: c_uint) {
-    cgcx.diag_emitter.inline_asm_error(cookie as u32, msg.to_owned());
-}
-
-unsafe extern "C" fn inline_asm_handler(diag: &SMDiagnostic,
-                                        user: *const c_void,
-                                        cookie: c_uint) {
-    if user.is_null() {
-        return
-    }
-    let (cgcx, _) = *(user as *const (&CodegenContext<LlvmCodegenBackend>, &Handler));
-
-    let msg = llvm::build_string(|s| llvm::LLVMRustWriteSMDiagnosticToString(diag, s))
-        .expect("non-UTF8 SMDiagnostic");
-
-    report_inline_asm(cgcx, &msg, cookie);
-}
 
 unsafe extern "C" fn diagnostic_handler(info: &DiagnosticInfo, user: *mut c_void) {
     if user.is_null() {
@@ -267,12 +246,6 @@ unsafe extern "C" fn diagnostic_handler(info: &DiagnosticInfo, user: *mut c_void
     let (cgcx, diag_handler) = *(user as *const (&CodegenContext<LlvmCodegenBackend>, &Handler));
 
     match llvm::diagnostic::Diagnostic::unpack(info) {
-        llvm::diagnostic::InlineAsm(inline) => {
-            report_inline_asm(cgcx,
-                              &llvm::twine_to_string(inline.message),
-                              inline.cookie);
-        }
-
         llvm::diagnostic::Optimization(opt) => {
             let enabled = match cgcx.remark {
                 Passes::All => true,

@@ -619,7 +619,7 @@ impl<'a, 'tcx> MemCategorizationContext<'a, 'tcx> {
             hir::ExprKind::Block(..) | hir::ExprKind::Loop(..) | hir::ExprKind::Match(..) |
             hir::ExprKind::Lit(..) | hir::ExprKind::Break(..) |
             hir::ExprKind::Continue(..) | hir::ExprKind::Struct(..) | hir::ExprKind::Repeat(..) |
-            hir::ExprKind::InlineAsm(..) | hir::ExprKind::Box(..) | hir::ExprKind::Err => {
+            hir::ExprKind::Box(..) | hir::ExprKind::Err => {
                 Ok(self.cat_rvalue_node(expr.hir_id, expr.span, expr_ty))
             }
         }

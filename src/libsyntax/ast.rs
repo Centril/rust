@@ -1143,7 +1143,6 @@ impl Expr {
             ExprKind::Break(..) => ExprPrecedence::Break,
             ExprKind::Continue(..) => ExprPrecedence::Continue,
             ExprKind::Ret(..) => ExprPrecedence::Ret,
-            ExprKind::InlineAsm(..) => ExprPrecedence::InlineAsm,
             ExprKind::Mac(..) => ExprPrecedence::Mac,
             ExprKind::Struct(..) => ExprPrecedence::Struct,
             ExprKind::Repeat(..) => ExprPrecedence::Repeat,
@@ -1270,9 +1269,6 @@ pub enum ExprKind {
     Continue(Option<Label>),
     /// A `return`, with an optional value to be returned.
     Ret(Option<P<Expr>>),
-
-    /// Output of the `asm!()` macro.
-    InlineAsm(P<InlineAsm>),
 
     /// A macro invocation; pre-expansion.
     Mac(Mac),
@@ -1858,41 +1854,6 @@ impl TyKind {
 pub enum TraitObjectSyntax {
     Dyn,
     None,
-}
-
-/// Inline assembly dialect.
-///
-/// E.g., `"intel"` as in `asm!("mov eax, 2" : "={eax}"(result) : : : "intel")`.
-#[derive(Clone, PartialEq, RustcEncodable, RustcDecodable, Debug, Copy)]
-pub enum AsmDialect {
-    Att,
-    Intel,
-}
-
-/// Inline assembly.
-///
-/// E.g., `"={eax}"(result)` as in `asm!("mov eax, 2" : "={eax}"(result) : : : "intel")`.
-#[derive(Clone, RustcEncodable, RustcDecodable, Debug)]
-pub struct InlineAsmOutput {
-    pub constraint: Symbol,
-    pub expr: P<Expr>,
-    pub is_rw: bool,
-    pub is_indirect: bool,
-}
-
-/// Inline assembly.
-///
-/// E.g., `asm!("NOP");`.
-#[derive(Clone, RustcEncodable, RustcDecodable, Debug)]
-pub struct InlineAsm {
-    pub asm: Symbol,
-    pub asm_str_style: StrStyle,
-    pub outputs: Vec<InlineAsmOutput>,
-    pub inputs: Vec<(Symbol, P<Expr>)>,
-    pub clobbers: Vec<Symbol>,
-    pub volatile: bool,
-    pub alignstack: bool,
-    pub dialect: AsmDialect,
 }
 
 /// A parameter in a function header.

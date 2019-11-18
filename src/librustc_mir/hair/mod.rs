@@ -263,11 +263,6 @@ pub enum ExprKind<'tcx> {
         literal: &'tcx Const<'tcx>,
         user_ty: Option<Canonical<'tcx, UserType<'tcx>>>,
     },
-    InlineAsm {
-        asm: &'tcx hir::InlineAsm,
-        outputs: Vec<ExprRef<'tcx>>,
-        inputs: Vec<ExprRef<'tcx>>
-    },
     Yield {
         value: ExprRef<'tcx>,
     },

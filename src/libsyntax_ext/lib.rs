@@ -19,7 +19,6 @@ use syntax::symbol::sym;
 use syntax_expand::base::{Resolver, SyntaxExtension, SyntaxExtensionKind, MacroExpanderFn};
 use syntax_expand::proc_macro::BangProcMacro;
 
-mod asm;
 mod assert;
 mod cfg;
 mod compile_error;
@@ -60,7 +59,6 @@ pub fn register_builtin_macros(resolver: &mut dyn Resolver, edition: Edition) {
     }
 
     register_bang! {
-        asm: asm::expand_asm,
         assert: assert::expand_assert,
         cfg: cfg::expand_cfg,
         column: source_util::expand_column,

@@ -225,10 +225,6 @@ fn check_statement(
         // just an assignment
         StatementKind::SetDiscriminant { .. } => Ok(()),
 
-        | StatementKind::InlineAsm { .. } => {
-            Err((span, "cannot use inline assembly in const fn".into()))
-        }
-
         // These are all NOPs
         | StatementKind::StorageLive(_)
         | StatementKind::StorageDead(_)

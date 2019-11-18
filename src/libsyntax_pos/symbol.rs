@@ -142,7 +142,6 @@ symbols! {
         Arguments,
         ArgumentV1,
         arm_target_feature,
-        asm,
         assert,
         associated_consts,
         associated_type_bounds,

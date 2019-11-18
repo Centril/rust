@@ -381,9 +381,6 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
             ExprKind::Closure(_, _, _, fn_decl, _, _) => {
                 self.check_fn_decl(fn_decl);
             }
-            ExprKind::InlineAsm(..) if !self.session.target.target.options.allow_asm => {
-                span_err!(self.session, expr.span, E0472, "asm! is unsupported on this target");
-            }
             _ => {}
         }
 

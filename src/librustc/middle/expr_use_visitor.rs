@@ -283,17 +283,6 @@ impl<'a, 'tcx> ExprUseVisitor<'a, 'tcx> {
                 self.borrow_expr(&base, bk);
             }
 
-            hir::ExprKind::InlineAsm(ref ia, ref outputs, ref inputs) => {
-                for (o, output) in ia.outputs.iter().zip(outputs) {
-                    if o.is_indirect {
-                        self.consume_expr(output);
-                    } else {
-                        self.mutate_expr(output);
-                    }
-                }
-                self.consume_exprs(inputs);
-            }
-
             hir::ExprKind::Continue(..) |
             hir::ExprKind::Lit(..) |
             hir::ExprKind::Err => {}

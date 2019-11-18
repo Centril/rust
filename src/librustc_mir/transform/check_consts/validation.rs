@@ -548,7 +548,6 @@ impl Visitor<'tcx> for Validator<'_, 'mir, 'tcx> {
             StatementKind::SetDiscriminant { .. } |
             StatementKind::StorageLive(_) |
             StatementKind::StorageDead(_) |
-            StatementKind::InlineAsm {..} |
             StatementKind::Retag { .. } |
             StatementKind::AscribeUserType(..) |
             StatementKind::Nop => {}

@@ -19,8 +19,8 @@ use crate::util::nodemap::{NodeMap, FxHashSet};
 use errors::FatalError;
 use syntax_pos::{Span, DUMMY_SP, MultiSpan};
 use syntax::source_map::Spanned;
-use syntax::ast::{self, CrateSugar, Ident, Name, NodeId, AsmDialect};
-use syntax::ast::{Attribute, Label, LitKind, StrStyle, FloatTy, IntTy, UintTy};
+use syntax::ast::{self, CrateSugar, Ident, Name, NodeId};
+use syntax::ast::{Attribute, Label, LitKind, FloatTy, IntTy, UintTy};
 pub use syntax::ast::{Mutability, Constness, Unsafety, Movability, CaptureBy, IsAuto, ImplPolarity};
 use syntax::attr::{InlineAttr, OptimizeAttr};
 use syntax::symbol::{Symbol, kw};
@@ -1457,7 +1457,7 @@ pub struct Expr {
 
 // `Expr` is used a lot. Make sure it doesn't unintentionally get bigger.
 #[cfg(target_arch = "x86_64")]
-static_assert_size!(Expr, 72);
+static_assert_size!(Expr, 64);
 
 impl Expr {
     pub fn precedence(&self) -> ExprPrecedence {
@@ -1485,7 +1485,6 @@ impl Expr {
             ExprKind::Break(..) => ExprPrecedence::Break,
             ExprKind::Continue(..) => ExprPrecedence::Continue,
             ExprKind::Ret(..) => ExprPrecedence::Ret,
-            ExprKind::InlineAsm(..) => ExprPrecedence::InlineAsm,
             ExprKind::Struct(..) => ExprPrecedence::Struct,
             ExprKind::Repeat(..) => ExprPrecedence::Repeat,
             ExprKind::Yield(..) => ExprPrecedence::Yield,
@@ -1532,7 +1531,6 @@ impl Expr {
             ExprKind::Ret(..) |
             ExprKind::Loop(..) |
             ExprKind::Assign(..) |
-            ExprKind::InlineAsm(..) |
             ExprKind::AssignOp(..) |
             ExprKind::Lit(_) |
             ExprKind::Unary(..) |
@@ -1654,9 +1652,6 @@ pub enum ExprKind {
     Continue(Destination),
     /// A `return`, with an optional value to be returned.
     Ret(Option<P<Expr>>),
-
-    /// Inline assembly (from `asm!`), with its outputs and inputs.
-    InlineAsm(P<InlineAsm>, HirVec<Expr>, HirVec<Expr>),
 
     /// A struct or struct-like variant literal expression.
     ///
@@ -2050,28 +2045,6 @@ pub enum TyKind {
     Infer,
     /// Placeholder for a type that has failed to be defined.
     Err,
-}
-
-#[derive(Copy, Clone, RustcEncodable, RustcDecodable, Debug, HashStable)]
-pub struct InlineAsmOutput {
-    pub constraint: Symbol,
-    pub is_rw: bool,
-    pub is_indirect: bool,
-    pub span: Span,
-}
-
-// NOTE(eddyb) This is used within MIR as well, so unlike the rest of the HIR,
-// it needs to be `Clone` and use plain `Vec<T>` instead of `HirVec<T>`.
-#[derive(Clone, RustcEncodable, RustcDecodable, Debug, HashStable)]
-pub struct InlineAsm {
-    pub asm: Symbol,
-    pub asm_str_style: StrStyle,
-    pub outputs: Vec<InlineAsmOutput>,
-    pub inputs: Vec<Symbol>,
-    pub clobbers: Vec<Symbol>,
-    pub volatile: bool,
-    pub alignstack: bool,
-    pub dialect: AsmDialect,
 }
 
 /// Represents a parameter in a function header.

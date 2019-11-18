@@ -16,7 +16,6 @@ use crate::hir::ptr::P;
 
 use std::borrow::Cow;
 use std::cell::Cell;
-use std::vec;
 
 pub enum AnnNode<'a> {
     Name(&'a ast::Name),
@@ -1364,67 +1363,6 @@ impl<'a> State<'a> {
                     self.s.word(" ");
                     self.print_expr_maybe_paren(&expr, parser::PREC_JUMP);
                 }
-            }
-            hir::ExprKind::InlineAsm(ref a, ref outputs, ref inputs) => {
-                self.s.word("asm!");
-                self.popen();
-                self.print_string(&a.asm.as_str(), a.asm_str_style);
-                self.word_space(":");
-
-                let mut out_idx = 0;
-                self.commasep(Inconsistent, &a.outputs, |s, out| {
-                    let constraint = out.constraint.as_str();
-                    let mut ch = constraint.chars();
-                    match ch.next() {
-                        Some('=') if out.is_rw => {
-                            s.print_string(&format!("+{}", ch.as_str()),
-                                           ast::StrStyle::Cooked)
-                        }
-                        _ => s.print_string(&constraint, ast::StrStyle::Cooked),
-                    }
-                    s.popen();
-                    s.print_expr(&outputs[out_idx]);
-                    s.pclose();
-                    out_idx += 1;
-                });
-                self.s.space();
-                self.word_space(":");
-
-                let mut in_idx = 0;
-                self.commasep(Inconsistent, &a.inputs, |s, co| {
-                    s.print_string(&co.as_str(), ast::StrStyle::Cooked);
-                    s.popen();
-                    s.print_expr(&inputs[in_idx]);
-                    s.pclose();
-                    in_idx += 1;
-                });
-                self.s.space();
-                self.word_space(":");
-
-                self.commasep(Inconsistent, &a.clobbers, |s, co| {
-                    s.print_string(&co.as_str(), ast::StrStyle::Cooked);
-                });
-
-                let mut options = vec![];
-                if a.volatile {
-                    options.push("volatile");
-                }
-                if a.alignstack {
-                    options.push("alignstack");
-                }
-                if a.dialect == ast::AsmDialect::Intel {
-                    options.push("intel");
-                }
-
-                if !options.is_empty() {
-                    self.s.space();
-                    self.word_space(":");
-                    self.commasep(Inconsistent, &options, |s, &co| {
-                        s.print_string(co, ast::StrStyle::Cooked);
-                    });
-                }
-
-                self.pclose();
             }
             hir::ExprKind::Yield(ref expr, _) => {
                 self.word_space("yield");

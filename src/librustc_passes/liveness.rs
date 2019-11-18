@@ -531,7 +531,6 @@ fn visit_expr<'tcx>(ir: &mut IrMaps<'tcx>, expr: &'tcx Expr) {
       hir::ExprKind::AssignOp(..) |
       hir::ExprKind::Struct(..) |
       hir::ExprKind::Repeat(..) |
-      hir::ExprKind::InlineAsm(..) |
       hir::ExprKind::Box(..) |
       hir::ExprKind::Yield(..) |
       hir::ExprKind::Type(..) |
@@ -1177,22 +1176,6 @@ impl<'a, 'tcx> Liveness<'a, 'tcx> {
                 self.propagate_through_expr(&e, succ)
             }
 
-            hir::ExprKind::InlineAsm(ref ia, ref outputs, ref inputs) => {
-                let succ = ia.outputs.iter().zip(outputs).rev().fold(succ, |succ, (o, output)| {
-                // see comment on places
-                // in propagate_through_place_components()
-                if o.is_indirect {
-                    self.propagate_through_expr(output, succ)
-                } else {
-                    let acc = if o.is_rw { ACC_WRITE|ACC_READ } else { ACC_WRITE };
-                    let succ = self.write_place(output, succ, acc);
-                    self.propagate_through_place_components(output, succ)
-                }});
-
-                // Inputs are executed first. Propagate last because of rev order
-                self.propagate_through_exprs(inputs, succ)
-            }
-
             hir::ExprKind::Lit(..) | hir::ExprKind::Err |
             hir::ExprKind::Path(hir::QPath::TypeRelative(..)) => {
                 succ
@@ -1385,20 +1368,6 @@ fn check_expr<'tcx>(this: &mut Liveness<'_, 'tcx>, expr: &'tcx Expr) {
         hir::ExprKind::AssignOp(_, ref l, _) => {
             if !this.tables.is_method_call(expr) {
                 this.check_place(&l);
-            }
-        }
-
-        hir::ExprKind::InlineAsm(ref ia, ref outputs, ref inputs) => {
-            for input in inputs {
-                this.visit_expr(input);
-            }
-
-            // Output operands must be places
-            for (o, output) in ia.outputs.iter().zip(outputs) {
-                if !o.is_indirect {
-                    this.check_place(output);
-                }
-                this.visit_expr(output);
             }
         }
 

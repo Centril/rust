@@ -106,41 +106,6 @@ impl<'a, 'tcx> Builder<'a, 'tcx> {
             ExprKind::Return { value } => {
                 this.break_scope(block, value, BreakableTarget::Return, source_info)
             }
-            ExprKind::InlineAsm {
-                asm,
-                outputs,
-                inputs,
-            } => {
-                debug!("stmt_expr InlineAsm block_context.push(SubExpr) : {:?}", expr2);
-                this.block_context.push(BlockFrame::SubExpr);
-                let outputs = outputs
-                    .into_iter()
-                    .map(|output| unpack!(block = this.as_place(block, output)))
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice();
-                let inputs = inputs
-                    .into_iter()
-                    .map(|input| {
-                        (
-                            input.span(),
-                            unpack!(block = this.as_local_operand(block, input)),
-                        )
-                    }).collect::<Vec<_>>()
-                    .into_boxed_slice();
-                this.cfg.push(
-                    block,
-                    Statement {
-                        source_info,
-                        kind: StatementKind::InlineAsm(box InlineAsm {
-                            asm: asm.clone(),
-                            outputs,
-                            inputs,
-                        }),
-                    },
-                );
-                this.block_context.pop();
-                block.unit()
-            }
             _ => {
                 assert!(
                     statement_scope.is_some(),

@@ -123,13 +123,6 @@ impl<'mir, 'tcx> BitDenotation<'tcx> for RequiresStorage<'mir, 'tcx> {
                     sets.gen(local);
                 }
             }
-            StatementKind::InlineAsm(box InlineAsm { ref outputs, .. }) => {
-                for p in &**outputs {
-                    if let PlaceBase::Local(local) = p.base {
-                        sets.gen(local);
-                    }
-                }
-            }
             _ => (),
         }
     }

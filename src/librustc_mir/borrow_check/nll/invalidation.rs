@@ -1,9 +1,8 @@
 use crate::borrow_check::borrow_set::BorrowSet;
 use crate::borrow_check::location::LocationTable;
-use crate::borrow_check::{JustWrite, WriteAndRead};
 use crate::borrow_check::{AccessDepth, Deep, Shallow};
 use crate::borrow_check::{ReadOrWrite, Activation, Read, Reservation, Write};
-use crate::borrow_check::{LocalMutationIsAllowed, MutateMode};
+use crate::borrow_check::LocalMutationIsAllowed;
 use crate::borrow_check::ArtificialField;
 use crate::borrow_check::{ReadKind, WriteKind};
 use crate::borrow_check::nll::facts::AllFacts;
@@ -76,7 +75,6 @@ impl<'cx, 'tcx> Visitor<'tcx> for InvalidationGenerator<'cx, 'tcx> {
                     location,
                     lhs,
                     Shallow(None),
-                    JustWrite
                 );
             }
             StatementKind::FakeRead(_, _) => {
@@ -90,32 +88,7 @@ impl<'cx, 'tcx> Visitor<'tcx> for InvalidationGenerator<'cx, 'tcx> {
                     location,
                     place,
                     Shallow(None),
-                    JustWrite,
                 );
-            }
-            StatementKind::InlineAsm(ref asm) => {
-                for (o, output) in asm.asm.outputs.iter().zip(asm.outputs.iter()) {
-                    if o.is_indirect {
-                        // FIXME(eddyb) indirect inline asm outputs should
-                        // be encoded through MIR place derefs instead.
-                        self.access_place(
-                            location,
-                            output,
-                            (Deep, Read(ReadKind::Copy)),
-                            LocalMutationIsAllowed::No,
-                        );
-                    } else {
-                        self.mutate_place(
-                            location,
-                            output,
-                            if o.is_rw { Deep } else { Shallow(None) },
-                            if o.is_rw { WriteAndRead } else { JustWrite },
-                        );
-                    }
-                }
-                for (_, input) in asm.inputs.iter() {
-                    self.consume_operand(location, input);
-                }
             }
             StatementKind::Nop |
             StatementKind::AscribeUserType(..) |
@@ -175,7 +148,6 @@ impl<'cx, 'tcx> Visitor<'tcx> for InvalidationGenerator<'cx, 'tcx> {
                     location,
                     drop_place,
                     Deep,
-                    JustWrite,
                 );
                 self.consume_operand(
                     location,
@@ -198,7 +170,6 @@ impl<'cx, 'tcx> Visitor<'tcx> for InvalidationGenerator<'cx, 'tcx> {
                         location,
                         dest,
                         Deep,
-                        JustWrite,
                     );
                 }
             }
@@ -268,7 +239,6 @@ impl<'cx, 'tcx> InvalidationGenerator<'cx, 'tcx> {
         location: Location,
         place: &Place<'tcx>,
         kind: AccessDepth,
-        _mode: MutateMode,
     ) {
         self.access_place(
             location,
