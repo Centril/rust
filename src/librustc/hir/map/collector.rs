@@ -519,7 +519,7 @@ impl<'a, 'hir> Visitor<'hir> for NodeCollector<'a, 'hir> {
     fn visit_vis(&mut self, visibility: &'hir Visibility) {
         match visibility.node {
             VisibilityKind::Public |
-            VisibilityKind::Crate(_) |
+            VisibilityKind::Relative(_, _) |
             VisibilityKind::Inherited => {}
             VisibilityKind::Restricted { hir_id, .. } => {
                 self.insert(visibility.span, hir_id, Node::Visibility(visibility));

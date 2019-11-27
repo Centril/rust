@@ -1,3 +1,27 @@
+error[E0364]: `f` is private, and cannot be re-exported
+  --> $DIR/unused.rs:7:24
+   |
+LL |         pub(super) use super::f;
+   |                        ^^^^^^^^
+   |
+note: consider marking `f` as `pub` in the imported module
+  --> $DIR/unused.rs:7:24
+   |
+LL |         pub(super) use super::f;
+   |                        ^^^^^^^^
+
+error[E0364]: `f` is private, and cannot be re-exported
+  --> $DIR/unused.rs:16:24
+   |
+LL |         pub(super) use super::f; // Check that this is counted as used (cf. issue #36249).
+   |                        ^^^^^^^^
+   |
+note: consider marking `f` as `pub` in the imported module
+  --> $DIR/unused.rs:16:24
+   |
+LL |         pub(super) use super::f; // Check that this is counted as used (cf. issue #36249).
+   |                        ^^^^^^^^
+
 error: unused import: `super::f`
   --> $DIR/unused.rs:7:24
    |
@@ -11,5 +35,6 @@ LL | #![deny(unused)]
    |         ^^^^^^
    = note: `#[deny(unused_imports)]` implied by `#[deny(unused)]`
 
-error: aborting due to previous error
+error: aborting due to 3 previous errors
 
+For more information about this error, try `rustc --explain E0364`.

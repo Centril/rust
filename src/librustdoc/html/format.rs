@@ -13,6 +13,7 @@ use rustc::hir::def_id::DefId;
 use rustc::util::nodemap::FxHashSet;
 use rustc_target::spec::abi::Abi;
 use rustc::hir;
+use syntax::ast;
 
 use crate::clean::{self, PrimitiveType};
 use crate::html::item_type::ItemType;
@@ -1024,7 +1025,11 @@ impl clean::Visibility {
             match *self {
                 clean::Public => f.write_str("pub "),
                 clean::Inherited => Ok(()),
-                clean::Visibility::Crate => write!(f, "pub(crate) "),
+                clean::Visibility::Relative(to, _) => f.write_str(match to {
+                    ast::VisRelative::Crate => "crate ",
+                    ast::VisRelative::Super => "super ",
+                    ast::VisRelative::Self_ => "pub(self) ",
+                }),
                 clean::Visibility::Restricted(did, ref path) => {
                     f.write_str("pub(")?;
                     if path.segments.len() != 1

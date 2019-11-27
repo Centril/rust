@@ -197,9 +197,20 @@ impl<'a, 'b> BuildReducedGraphVisitor<'a, 'b> {
         let parent_scope = &self.parent_scope;
         match vis.node {
             ast::VisibilityKind::Public => ty::Visibility::Public,
-            ast::VisibilityKind::Crate(..) => {
-                ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX))
-            }
+            ast::VisibilityKind::Relative(to, _) => ty::Visibility::Restricted(match to {
+                ast::VisRelative::Crate => DefId::local(CRATE_DEF_INDEX),
+                ast::VisRelative::Super => match parent_scope.module.parent {
+                    Some(module) => module.normal_ancestor_id,
+                    None => {
+                        self.r.session.span_err(
+                            vis.span,
+                            "no parent module for `super` visibility to be relative to",
+                        );
+                        return ty::Visibility::Public;
+                    }
+                },
+                ast::VisRelative::Self_ => parent_scope.module.normal_ancestor_id,
+            }),
             ast::VisibilityKind::Inherited => {
                 ty::Visibility::Restricted(parent_scope.module.normal_ancestor_id)
             }

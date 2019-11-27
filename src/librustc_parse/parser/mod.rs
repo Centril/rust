@@ -15,7 +15,7 @@ use crate::{Directory, DirectoryOwnership};
 use crate::lexer::UnmatchedBrace;
 
 use syntax::ast::{
-    self, DUMMY_NODE_ID, AttrStyle, Attribute, CrateSugar, Extern, Ident, StrLit,
+    self, DUMMY_NODE_ID, AttrStyle, Attribute, VisSugar, Extern, Ident, StrLit,
     IsAsync, MacDelimiter, Mutability, Visibility, VisibilityKind, Unsafety,
 };
 
@@ -1113,8 +1113,30 @@ impl<'a> Parser<'a> {
         res
     }
 
-    fn is_crate_vis(&self) -> bool {
-        self.token.is_keyword(kw::Crate) && self.look_ahead(1, |t| t != &token::ModSep)
+    fn check_short_vis_relative(&mut self) -> Option<ast::VisRelative> {
+        if self.look_ahead(1, |t| t == &token::ModSep) {
+            None
+        } else if self.check_keyword(kw::Crate) {
+            Some(ast::VisRelative::Crate)
+        } else if self.check_keyword(kw::Super) {
+            Some(ast::VisRelative::Super)
+        } else {
+            None
+        }
+    }
+
+    fn is_long_vis_relative(&mut self) -> Option<ast::VisRelative> {
+        if self.look_ahead(2, |t| t == &token::ModSep) { // Account for e.g. `pub(crate::foo)`.
+           None
+        } else if self.is_keyword_ahead(1, &[kw::Crate]) {
+            Some(ast::VisRelative::Crate)
+        } else if self.is_keyword_ahead(1, &[kw::Super]) {
+            Some(ast::VisRelative::Super)
+        } else if self.is_keyword_ahead(1, &[kw::SelfLower]) {
+            Some(ast::VisRelative::Self_)
+        } else {
+            None
+        }
     }
 
     /// Parses `pub`, `pub(crate)` and `pub(in path)` plus shortcuts `crate` for `pub(crate)`,
@@ -1125,11 +1147,10 @@ impl<'a> Parser<'a> {
     pub fn parse_visibility(&mut self, fbt: FollowedByType) -> PResult<'a, Visibility> {
         maybe_whole!(self, NtVis, |x| x);
 
-        self.expected_tokens.push(TokenType::Keyword(kw::Crate));
-        if self.is_crate_vis() {
-            self.bump(); // `crate`
+        if let Some(vis) = self.check_short_vis_relative() {
+            self.bump(); // The keyword
             self.sess.gated_spans.gate(sym::crate_visibility_modifier, self.prev_span);
-            return Ok(respan(self.prev_span, VisibilityKind::Crate(CrateSugar::JustCrate)));
+            return Ok(respan(self.prev_span, VisibilityKind::Relative(vis, VisSugar::Short)));
         }
 
         if !self.eat_keyword(kw::Pub) {
@@ -1145,16 +1166,15 @@ impl<'a> Parser<'a> {
             // `()` or a tuple might be allowed. For example, `struct Struct(pub (), pub (usize));`.
             // Because of this, we only `bump` the `(` if we're assured it is appropriate to do so
             // by the following tokens.
-            if self.is_keyword_ahead(1, &[kw::Crate])
-                && self.look_ahead(2, |t| t != &token::ModSep) // account for `pub(crate::foo)`
-            {
-                // Parse `pub(crate)`.
+            if let Some(vis) = self.is_long_vis_relative() {
+                // Parse e.g. `pub(crate)`.
                 self.bump(); // `(`
-                self.bump(); // `crate`
+                self.bump(); // e.g. `crate`
                 self.expect(&token::CloseDelim(token::Paren))?; // `)`
-                let vis = VisibilityKind::Crate(CrateSugar::PubCrate);
+                let vis = VisibilityKind::Relative(vis, VisSugar::Long);
                 return Ok(respan(lo.to(self.prev_span), vis));
-            } else if self.is_keyword_ahead(1, &[kw::In]) {
+            }
+            if self.is_keyword_ahead(1, &[kw::In]) {
                 // Parse `pub(in path)`.
                 self.bump(); // `(`
                 self.bump(); // `in`
@@ -1165,19 +1185,8 @@ impl<'a> Parser<'a> {
                     id: ast::DUMMY_NODE_ID,
                 };
                 return Ok(respan(lo.to(self.prev_span), vis));
-            } else if self.look_ahead(2, |t| t == &token::CloseDelim(token::Paren))
-                && self.is_keyword_ahead(1, &[kw::Super, kw::SelfLower])
-            {
-                // Parse `pub(self)` or `pub(super)`.
-                self.bump(); // `(`
-                let path = self.parse_path(PathStyle::Mod)?; // `super`/`self`
-                self.expect(&token::CloseDelim(token::Paren))?; // `)`
-                let vis = VisibilityKind::Restricted {
-                    path: P(path),
-                    id: ast::DUMMY_NODE_ID,
-                };
-                return Ok(respan(lo.to(self.prev_span), vis));
-            } else if let FollowedByType::No = fbt {
+            }
+            if let FollowedByType::No = fbt {
                 // Provide this diagnostic if a type cannot follow;
                 // in particular, if this is not a tuple struct.
                 self.recover_incorrect_vis_restriction()?;
@@ -1196,8 +1205,8 @@ impl<'a> Parser<'a> {
 
         let msg = "incorrect visibility restriction";
         let suggestion = r##"some possible visibility restrictions are:
-`pub(crate)`: visible only on the current crate
-`pub(super)`: visible only in the current module's parent
+`pub(crate)`: visible up to the current crate
+`pub(super)`: visible up to the current module's parent
 `pub(in path::to::module)`: visible only on the specified path"##;
 
         let path_str = pprust::path_to_string(&path);

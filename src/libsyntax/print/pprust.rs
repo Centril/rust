@@ -1437,19 +1437,18 @@ impl<'a> State<'a> {
     }
 
     crate fn print_visibility(&mut self, vis: &ast::Visibility) {
-        match vis.node {
+        match &vis.node {
             ast::VisibilityKind::Public => self.word_nbsp("pub"),
-            ast::VisibilityKind::Crate(sugar) => match sugar {
-                ast::CrateSugar::PubCrate => self.word_nbsp("pub(crate)"),
-                ast::CrateSugar::JustCrate => self.word_nbsp("crate")
+            ast::VisibilityKind::Relative(to, sugar) => match (to, sugar) {
+                (ast::VisRelative::Crate, ast::VisSugar::Long) => self.word_nbsp("pub(crate)"),
+                (ast::VisRelative::Crate, ast::VisSugar::Short) => self.word_nbsp("crate"),
+                (ast::VisRelative::Super, ast::VisSugar::Long) => self.word_nbsp("pub(super)"),
+                (ast::VisRelative::Super, ast::VisSugar::Short) => self.word_nbsp("super"),
+                (ast::VisRelative::Self_, ast::VisSugar::Long) => self.word_nbsp("pub(self)"),
+                (ast::VisRelative::Self_, ast::VisSugar::Short) => self.word_nbsp("self"),
             }
-            ast::VisibilityKind::Restricted { ref path, .. } => {
-                let path = to_string(|s| s.print_path(path, false, 0));
-                if path == "self" || path == "super" {
-                    self.word_nbsp(format!("pub({})", path))
-                } else {
-                    self.word_nbsp(format!("pub(in {})", path))
-                }
+            ast::VisibilityKind::Restricted { path, .. } => {
+                self.word_nbsp(format!("pub(in {})", to_string(|s| s.print_path(path, false, 0))))
             }
             ast::VisibilityKind::Inherited => {}
         }

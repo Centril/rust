@@ -289,18 +289,21 @@ impl<'tcx> DefIdTree for TyCtxt<'tcx> {
 
 impl Visibility {
     pub fn from_hir(visibility: &hir::Visibility, id: hir::HirId, tcx: TyCtxt<'_>) -> Self {
+        let hir = tcx.hir();
         match visibility.node {
             hir::VisibilityKind::Public => Visibility::Public,
-            hir::VisibilityKind::Crate(_) => Visibility::Restricted(DefId::local(CRATE_DEF_INDEX)),
+            hir::VisibilityKind::Relative(to, _) => Visibility::Restricted(match to {
+                ast::VisRelative::Crate => DefId::local(CRATE_DEF_INDEX),
+                ast::VisRelative::Super => hir.get_module_parent(hir.get_module_parent_node(id)),
+                ast::VisRelative::Self_ => hir.get_module_parent(id),
+            }),
+            hir::VisibilityKind::Inherited => Visibility::Restricted(hir.get_module_parent(id)),
             hir::VisibilityKind::Restricted { ref path, .. } => match path.res {
                 // If there is no resolution, `resolve` will have already reported an error, so
                 // assume that the visibility is public to avoid reporting more privacy errors.
                 Res::Err => Visibility::Public,
                 def => Visibility::Restricted(def.def_id()),
             },
-            hir::VisibilityKind::Inherited => {
-                Visibility::Restricted(tcx.hir().get_module_parent(id))
-            }
         }
     }
 

@@ -205,7 +205,8 @@ impl<'a> HashStable<StableHashingContext<'a>> for hir::VisibilityKind {
             hir::VisibilityKind::Inherited => {
                 // No fields to hash.
             }
-            hir::VisibilityKind::Crate(sugar) => {
+            hir::VisibilityKind::Relative(to, sugar) => {
+                to.hash_stable(hcx, hasher);
                 sugar.hash_stable(hcx, hasher);
             }
             hir::VisibilityKind::Restricted { ref path, hir_id } => {

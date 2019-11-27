@@ -647,7 +647,7 @@ impl LoweringContext<'_> {
                 // assigned".
                 match vis.node {
                     hir::VisibilityKind::Public |
-                    hir::VisibilityKind::Crate(_) |
+                    hir::VisibilityKind::Relative(_, _) |
                     hir::VisibilityKind::Inherited => {
                         *vis = respan(prefix.span.shrink_to_lo(), hir::VisibilityKind::Inherited);
                     }
@@ -686,8 +686,8 @@ impl LoweringContext<'_> {
     fn rebuild_vis(&mut self, vis: &hir::Visibility) -> hir::Visibility {
         let vis_kind = match vis.node {
             hir::VisibilityKind::Public => hir::VisibilityKind::Public,
-            hir::VisibilityKind::Crate(sugar) => hir::VisibilityKind::Crate(sugar),
             hir::VisibilityKind::Inherited => hir::VisibilityKind::Inherited,
+            hir::VisibilityKind::Relative(to, s) => hir::VisibilityKind::Relative(to, s),
             hir::VisibilityKind::Restricted { ref path, hir_id: _ } => {
                 hir::VisibilityKind::Restricted {
                     path: P(self.rebuild_use_path(path)),
@@ -984,7 +984,7 @@ impl LoweringContext<'_> {
     ) -> hir::Visibility {
         let node = match v.node {
             VisibilityKind::Public => hir::VisibilityKind::Public,
-            VisibilityKind::Crate(sugar) => hir::VisibilityKind::Crate(sugar),
+            VisibilityKind::Relative(to, s) => hir::VisibilityKind::Relative(to, s),
             VisibilityKind::Restricted { ref path, id } => {
                 debug!("lower_visibility: restricted path id = {:?}", id);
                 let lowered_id = if let Some(owner) = explicit_owner {

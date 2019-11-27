@@ -19,6 +19,7 @@ mod foo {
         use foo::bar::S;
         pub(self) use foo::bar::f; // ok
         pub(super) use foo::bar::f as g; //~ ERROR cannot be re-exported
+        pub(crate) use foo::bar::f as h; //~ ERROR cannot be re-exported
         S::default().x; // ok
         S::default().f(); // ok
         S::g(); // ok

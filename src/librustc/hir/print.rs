@@ -743,19 +743,18 @@ impl<'a> State<'a> {
     pub fn print_visibility(&mut self, vis: &hir::Visibility) {
         match vis.node {
             hir::VisibilityKind::Public => self.word_nbsp("pub"),
-            hir::VisibilityKind::Crate(ast::CrateSugar::JustCrate) => self.word_nbsp("crate"),
-            hir::VisibilityKind::Crate(ast::CrateSugar::PubCrate) => self.word_nbsp("pub(crate)"),
+            hir::VisibilityKind::Relative(to, sugar) => match (to, sugar) {
+                (ast::VisRelative::Crate, ast::VisSugar::Long) => self.word_nbsp("pub(crate)"),
+                (ast::VisRelative::Crate, ast::VisSugar::Short) => self.word_nbsp("crate"),
+                (ast::VisRelative::Super, ast::VisSugar::Long) => self.word_nbsp("pub(super)"),
+                (ast::VisRelative::Super, ast::VisSugar::Short) => self.word_nbsp("super"),
+                (ast::VisRelative::Self_, ast::VisSugar::Long) => self.word_nbsp("pub(self)"),
+                (ast::VisRelative::Self_, ast::VisSugar::Short) => self.word_nbsp("self"),
+            }
             hir::VisibilityKind::Restricted { ref path, .. } => {
                 self.s.word("pub(");
-                if path.segments.len() == 1 &&
-                   path.segments[0].ident.name == kw::Super {
-                    // Special case: `super` can print like `pub(super)`.
-                    self.s.word("super");
-                } else {
-                    // Everything else requires `in` at present.
-                    self.word_nbsp("in");
-                    self.print_path(path, false);
-                }
+                self.word_nbsp("in");
+                self.print_path(path, false);
                 self.word_nbsp(")");
             }
             hir::VisibilityKind::Inherited => ()

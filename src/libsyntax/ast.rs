@@ -2364,21 +2364,27 @@ impl PolyTraitRef {
     }
 }
 
-#[derive(Copy, Clone, RustcEncodable, RustcDecodable, Debug, HashStable_Generic)]
-pub enum CrateSugar {
-    /// Source is `pub(crate)`.
-    PubCrate,
+pub type Visibility = Spanned<VisibilityKind>;
 
-    /// Source is (just) `crate`.
-    JustCrate,
+#[derive(Copy, Clone, PartialEq, Eq, RustcEncodable, RustcDecodable, Debug, HashStable_Generic)]
+pub enum VisSugar {
+    /// Source is `pub(crate)` or `pub(super)`.
+    Long,
+    /// Source is (just) `crate` or `super`.
+    Short,
 }
 
-pub type Visibility = Spanned<VisibilityKind>;
+#[derive(Copy, Clone, PartialEq, Eq, RustcEncodable, RustcDecodable, Debug, HashStable_Generic)]
+pub enum VisRelative {
+    Crate,
+    Super,
+    Self_,
+}
 
 #[derive(Clone, RustcEncodable, RustcDecodable, Debug)]
 pub enum VisibilityKind {
     Public,
-    Crate(CrateSugar),
+    Relative(VisRelative, VisSugar),
     Restricted { path: P<Path>, id: NodeId },
     Inherited,
 }

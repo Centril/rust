@@ -19,7 +19,7 @@ use crate::util::nodemap::{NodeMap, FxHashSet};
 use errors::FatalError;
 use syntax_pos::{Span, DUMMY_SP, MultiSpan};
 use syntax::source_map::Spanned;
-use syntax::ast::{self, CrateSugar, Ident, Name, NodeId, AsmDialect};
+use syntax::ast::{self, VisRelative, VisSugar, Ident, Name, NodeId, AsmDialect};
 use syntax::ast::{Attribute, Label, LitKind, StrStyle, FloatTy, IntTy, UintTy};
 pub use syntax::ast::{Mutability, Constness, Unsafety, Movability, CaptureBy};
 pub use syntax::ast::{IsAuto, ImplPolarity, BorrowKind};
@@ -2326,7 +2326,7 @@ pub type Visibility = Spanned<VisibilityKind>;
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum VisibilityKind {
     Public,
-    Crate(CrateSugar),
+    Relative(VisRelative, VisSugar),
     Restricted { path: P<Path>, hir_id: HirId },
     Inherited,
 }
@@ -2343,7 +2343,7 @@ impl VisibilityKind {
         match *self {
             VisibilityKind::Public |
             VisibilityKind::Inherited => false,
-            VisibilityKind::Crate(..) |
+            VisibilityKind::Relative(_, _) |
             VisibilityKind::Restricted { .. } => true,
         }
     }
@@ -2352,7 +2352,9 @@ impl VisibilityKind {
         match *self {
             VisibilityKind::Public => "public",
             VisibilityKind::Inherited => "private",
-            VisibilityKind::Crate(..) => "crate-visible",
+            VisibilityKind::Relative(VisRelative::Crate, _) => "crate-visible",
+            VisibilityKind::Relative(VisRelative::Super, _) => "super-visible",
+            VisibilityKind::Relative(VisRelative::Self_, _) => "module-visible",
             VisibilityKind::Restricted { .. } => "restricted",
         }
     }

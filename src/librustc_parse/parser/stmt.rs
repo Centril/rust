@@ -60,7 +60,7 @@ impl<'a> Parser<'a> {
                 span: lo.to(self.prev_span),
             }
         // Starts like a simple path, being careful to avoid contextual keywords
-        // such as a union items, item with `crate` visibility or auto trait items.
+        // such as a union items, item with `crate` / `super` visibility or auto trait items.
         // Our goal here is to parse an arbitrary path `a::b::c` but not something that starts
         // like a path (1 token), but it fact not a path.
         // `union::b::c` - path, `union U { ... }` - not a path.
@@ -68,7 +68,7 @@ impl<'a> Parser<'a> {
         } else if self.token.is_path_start() &&
                   !self.token.is_qpath_start() &&
                   !self.is_union_item() &&
-                  !self.is_crate_vis() &&
+                  self.check_short_vis_relative().is_none() &&
                   !self.is_auto_trait_item() &&
                   !self.is_async_fn() {
             let path = self.parse_path(PathStyle::Expr)?;

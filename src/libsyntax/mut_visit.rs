@@ -1279,7 +1279,7 @@ pub fn noop_flat_map_stmt_kind<T: MutVisitor>(kind: StmtKind, vis: &mut T)
 
 pub fn noop_visit_vis<T: MutVisitor>(Spanned { node, span }: &mut Visibility, vis: &mut T) {
     match node {
-        VisibilityKind::Public | VisibilityKind::Crate(_) | VisibilityKind::Inherited => {}
+        VisibilityKind::Public | VisibilityKind::Inherited | VisibilityKind::Relative(_, _) => {}
         VisibilityKind::Restricted { path, id } => {
             vis.visit_path(path);
             vis.visit_id(id);

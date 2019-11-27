@@ -10,11 +10,11 @@ use crate::source_map::Spanned;
 use crate::edition::{ALL_EDITIONS, Edition};
 use crate::visit::{self, FnKind, Visitor};
 use crate::sess::ParseSess;
-use crate::symbol::{Symbol, sym};
 
 use errors::{Applicability, DiagnosticBuilder, Handler};
 use rustc_data_structures::fx::FxHashMap;
 use syntax_pos::{Span, DUMMY_SP, MultiSpan};
+use syntax_pos::symbol::{Symbol, sym};
 use log::debug;
 
 use rustc_error_codes::*;
@@ -676,9 +676,11 @@ impl<'a> Visitor<'a> for PostExpansionVisitor<'a> {
     }
 
     fn visit_vis(&mut self, vis: &'a ast::Visibility) {
-        if let ast::VisibilityKind::Crate(ast::CrateSugar::JustCrate) = vis.node {
-            gate_feature_post!(&self, crate_visibility_modifier, vis.span,
-                               "`crate` visibility modifier is experimental");
+        if let ast::VisibilityKind::Relative(_, ast::VisSugar::Short) = vis.node {
+            gate_feature_post!(
+                &self, crate_visibility_modifier, vis.span,
+                "short-hand visibility modifier is experimental"
+            );
         }
         visit::walk_vis(self, vis)
     }

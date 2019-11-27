@@ -3314,7 +3314,7 @@ impl Clean<Item> for ty::FieldDef {
 pub enum Visibility {
     Public,
     Inherited,
-    Crate,
+    Relative(ast::VisRelative, ast::VisSugar),
     Restricted(DefId, Path),
 }
 
@@ -3323,7 +3323,7 @@ impl Clean<Visibility> for hir::Visibility {
         match self.node {
             hir::VisibilityKind::Public => Visibility::Public,
             hir::VisibilityKind::Inherited => Visibility::Inherited,
-            hir::VisibilityKind::Crate(_) => Visibility::Crate,
+            hir::VisibilityKind::Relative(to, sugar) => Visibility::Relative(to, sugar),
             hir::VisibilityKind::Restricted { ref path, .. } => {
                 let path = path.clean(cx);
                 let did = register_res(cx, path.res);

@@ -7,14 +7,14 @@ LL | pub(crate) struct Snail;
 LL | pub type Helix_pomatia = Shell<Snail>;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ can't leak crate-visible type
 
-error[E0446]: restricted type `sea::Turtle` in public interface
+error[E0446]: super-visible type `sea::Turtle` in public interface
   --> $DIR/issue-33174-restricted-type-in-public-interface.rs:21:1
    |
 LL |     pub(super) struct Turtle;
-   |     ---------- `sea::Turtle` declared as restricted
+   |     ---------- `sea::Turtle` declared as super-visible
 ...
 LL | pub type Dermochelys_coriacea = Shell<sea::Turtle>;
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ can't leak restricted type
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ can't leak super-visible type
 
 error[E0446]: private type `Tortoise` in public interface
   --> $DIR/issue-33174-restricted-type-in-public-interface.rs:24:1

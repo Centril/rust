@@ -5,8 +5,8 @@ LL | pub (a) fn afn() {}
    |      ^ help: make this visible only to module `a` with `in`: `in a`
    |
    = help: some possible visibility restrictions are:
-           `pub(crate)`: visible only on the current crate
-           `pub(super)`: visible only in the current module's parent
+           `pub(crate)`: visible up to the current crate
+           `pub(super)`: visible up to the current module's parent
            `pub(in path::to::module)`: visible only on the specified path
 
 error[E0704]: incorrect visibility restriction
@@ -16,8 +16,8 @@ LL | pub (b) fn bfn() {}
    |      ^ help: make this visible only to module `b` with `in`: `in b`
    |
    = help: some possible visibility restrictions are:
-           `pub(crate)`: visible only on the current crate
-           `pub(super)`: visible only in the current module's parent
+           `pub(crate)`: visible up to the current crate
+           `pub(super)`: visible up to the current module's parent
            `pub(in path::to::module)`: visible only on the specified path
 
 error[E0704]: incorrect visibility restriction
@@ -27,8 +27,8 @@ LL | pub (crate::a) fn cfn() {}
    |      ^^^^^^^^ help: make this visible only to module `crate::a` with `in`: `in crate::a`
    |
    = help: some possible visibility restrictions are:
-           `pub(crate)`: visible only on the current crate
-           `pub(super)`: visible only in the current module's parent
+           `pub(crate)`: visible up to the current crate
+           `pub(super)`: visible up to the current module's parent
            `pub(in path::to::module)`: visible only on the specified path
 
 error[E0704]: incorrect visibility restriction
@@ -38,8 +38,8 @@ LL |         pub (a) invalid: usize,
    |              ^ help: make this visible only to module `a` with `in`: `in a`
    |
    = help: some possible visibility restrictions are:
-           `pub(crate)`: visible only on the current crate
-           `pub(super)`: visible only in the current module's parent
+           `pub(crate)`: visible up to the current crate
+           `pub(super)`: visible up to the current module's parent
            `pub(in path::to::module)`: visible only on the specified path
 
 error[E0704]: incorrect visibility restriction
@@ -49,8 +49,8 @@ LL | pub (xyz) fn xyz() {}
    |      ^^^ help: make this visible only to module `xyz` with `in`: `in xyz`
    |
    = help: some possible visibility restrictions are:
-           `pub(crate)`: visible only on the current crate
-           `pub(super)`: visible only in the current module's parent
+           `pub(crate)`: visible up to the current crate
+           `pub(super)`: visible up to the current module's parent
            `pub(in path::to::module)`: visible only on the specified path
 
 error[E0742]: visibilities can only be restricted to ancestor modules
