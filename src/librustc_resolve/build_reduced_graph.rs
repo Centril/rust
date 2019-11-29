@@ -197,9 +197,7 @@ impl<'a, 'b> BuildReducedGraphVisitor<'a, 'b> {
         let parent_scope = &self.parent_scope;
         match vis.node {
             ast::VisibilityKind::Public => ty::Visibility::Public,
-            ast::VisibilityKind::Crate(..) => {
-                ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX))
-            }
+            ast::VisibilityKind::Crate(..) => ty::Visibility::krate(),
             ast::VisibilityKind::Inherited => {
                 ty::Visibility::Restricted(parent_scope.module.normal_ancestor_id)
             }
@@ -741,7 +739,7 @@ impl<'a, 'b> BuildReducedGraphVisitor<'a, 'b> {
                 // If the structure is marked as non_exhaustive then lower the visibility
                 // to within the crate.
                 if has_non_exhaustive && vis == ty::Visibility::Public {
-                    ctor_vis = ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX));
+                    ctor_vis = ty::Visibility::krate();
                 }
 
                 // Record field names for error reporting.
@@ -970,7 +968,7 @@ impl<'a, 'b> BuildReducedGraphVisitor<'a, 'b> {
             root_span: span,
             span,
             module_path: Vec::new(),
-            vis: Cell::new(ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX))),
+            vis: Cell::new(ty::Visibility::krate()),
             used: Cell::new(false),
         });
 
@@ -1095,7 +1093,7 @@ impl<'a, 'b> BuildReducedGraphVisitor<'a, 'b> {
             let vis = if is_macro_export {
                 ty::Visibility::Public
             } else {
-                ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX))
+                ty::Visibility::krate()
             };
             let binding = (res, vis, span, expansion).to_name_binding(self.r.arenas);
             self.r.set_binding_parent_module(binding, parent_scope.module);
@@ -1310,7 +1308,7 @@ impl<'a, 'b> Visitor<'b> for BuildReducedGraphVisitor<'a, 'b> {
         let mut ctor_vis = vis;
         let has_non_exhaustive = attr::contains_name(&variant.attrs, sym::non_exhaustive);
         if has_non_exhaustive && vis == ty::Visibility::Public {
-            ctor_vis = ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX));
+            ctor_vis = ty::Visibility::krate();
         }
 
         // Define a constructor name in the value namespace.

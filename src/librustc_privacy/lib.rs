@@ -263,11 +263,10 @@ fn def_id_visibility<'tcx>(
                                 vdata.ctor_hir_id().unwrap());
                             let variant = adt_def.variant_with_ctor_id(ctor_did);
 
-                            if variant.is_field_list_non_exhaustive() &&
-                                ctor_vis == ty::Visibility::Public
+                            if variant.is_field_list_non_exhaustive()
+                                && ctor_vis == ty::Visibility::Public
                             {
-                                ctor_vis = ty::Visibility::Restricted(
-                                    DefId::local(CRATE_DEF_INDEX));
+                                ctor_vis = ty::Visibility::krate();
                                 let attrs = tcx.get_attrs(variant.def_id);
                                 span = attr::find_by_name(&attrs, sym::non_exhaustive)
                                     .unwrap().span;
@@ -299,8 +298,7 @@ fn def_id_visibility<'tcx>(
                                 let adt_def =
                                     tcx.adt_def(tcx.hir().get_parent_did(hir_id));
                                 if adt_def.non_enum_variant().is_field_list_non_exhaustive() {
-                                    ctor_vis =
-                                        ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX));
+                                    ctor_vis = ty::Visibility::krate();
                                     span = attr::find_by_name(&item.attrs, sym::non_exhaustive)
                                                 .unwrap().span;
                                     descr = "crate-visible";
@@ -1890,9 +1888,13 @@ impl<'a, 'tcx> Visitor<'tcx> for PrivateItemsInPublicInterfacesVisitor<'a, 'tcx>
             hir::ItemKind::Enum(ref def, _) => {
                 self.check(item.hir_id, item_visibility).generics().predicates();
 
+                // Variants of enums and their fields have their own publicity.
                 for variant in &def.variants {
+                    let var_vis = ty::Visibility::from_hir(&variant.vis, item.hir_id, tcx);
+                    let var_vis = min(item_visibility, var_vis, tcx);
                     for field in variant.data.fields() {
-                        self.check(field.hir_id, item_visibility).ty();
+                        let field_vis = ty::Visibility::from_hir(&field.vis, item.hir_id, tcx);
+                        self.check(field.hir_id, min(var_vis, field_vis, tcx)).ty();
                     }
                 }
             }

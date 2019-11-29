@@ -288,19 +288,32 @@ impl<'tcx> DefIdTree for TyCtxt<'tcx> {
 }
 
 impl Visibility {
-    pub fn from_hir(visibility: &hir::Visibility, id: hir::HirId, tcx: TyCtxt<'_>) -> Self {
+    pub fn krate() -> Self {
+        Visibility::Restricted(DefId::local(CRATE_DEF_INDEX))
+    }
+
+    /// Translate from HIR to semantic visibility.
+    ///
+    /// When `on_inherited` is `Some(vis)`, then `vis` is used when the visibility is inherited.
+    /// This occurs for enum variants and their fields.
+    pub fn from_hir(
+        visibility: &hir::Visibility,
+        id: hir::HirId,
+        tcx: TyCtxt<'_>,
+        on_inherited: Option<Self>,
+    ) -> Self {
         match visibility.node {
             hir::VisibilityKind::Public => Visibility::Public,
-            hir::VisibilityKind::Crate(_) => Visibility::Restricted(DefId::local(CRATE_DEF_INDEX)),
+            hir::VisibilityKind::Crate(_) => Visibility::krate(),
             hir::VisibilityKind::Restricted { ref path, .. } => match path.res {
                 // If there is no resolution, `resolve` will have already reported an error, so
                 // assume that the visibility is public to avoid reporting more privacy errors.
                 Res::Err => Visibility::Public,
                 def => Visibility::Restricted(def.def_id()),
             },
-            hir::VisibilityKind::Inherited => {
+            hir::VisibilityKind::Inherited => on_inherited.unwrap_or_else(|| {
                 Visibility::Restricted(tcx.hir().get_module_parent(id))
-            }
+            }),
         }
     }
 
@@ -2810,7 +2823,7 @@ impl<'tcx> TyCtxt<'tcx> {
             ident: trait_item_ref.ident,
             kind,
             // Visibility of trait items is inherited from their traits.
-            vis: Visibility::from_hir(parent_vis, trait_item_ref.id.hir_id, self),
+            vis: Visibility::from_hir(parent_vis, trait_item_ref.id.hir_id, self, false),
             defaultness: trait_item_ref.defaultness,
             def_id,
             container: TraitContainer(parent_def_id),
@@ -2836,7 +2849,7 @@ impl<'tcx> TyCtxt<'tcx> {
             ident: impl_item_ref.ident,
             kind,
             // Visibility of trait impl items doesn't matter.
-            vis: ty::Visibility::from_hir(&impl_item_ref.vis, impl_item_ref.id.hir_id, self),
+            vis: ty::Visibility::from_hir(&impl_item_ref.vis, impl_item_ref.id.hir_id, self, false),
             defaultness: impl_item_ref.defaultness,
             def_id,
             container: ImplContainer(parent_def_id),

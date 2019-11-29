@@ -527,14 +527,6 @@ impl<'a> Visitor<'a> for AstValidator<'a> {
                     Some("place qualifiers on individual foreign items instead"),
                 );
             }
-            ItemKind::Enum(ref def, _) => {
-                for variant in &def.variants {
-                    self.invalid_visibility(&variant.vis, None);
-                    for field in variant.data.fields() {
-                        self.invalid_visibility(&field.vis, None);
-                    }
-                }
-            }
             ItemKind::Trait(is_auto, _, ref generics, ref bounds, ref trait_items) => {
                 if is_auto == IsAuto::Yes {
                     // Auto traits cannot have generics, super traits nor contain items.

@@ -751,6 +751,7 @@ impl LoweringContext<'_> {
         hir::Variant {
             attrs: self.lower_attrs(&v.attrs),
             data: self.lower_variant_data(&v.data),
+            vis: self.lower_visibility(&v.vis, None),
             disr_expr: v.disr_expr.as_ref().map(|e| self.lower_anon_const(e)),
             id: self.lower_node_id(v.id),
             ident: v.ident,

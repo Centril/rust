@@ -2258,6 +2258,8 @@ pub struct Variant {
     pub attrs: HirVec<Attribute>,
     /// Id of the variant (not the constructor, see `VariantData::ctor_hir_id()`).
     pub id: HirId,
+    /// Visibility of the variant's constructor.
+    pub vis: Visibility,
     /// Fields and constructor id of the variant.
     pub data: VariantData,
     /// Explicit discriminant (e.g., `Foo = 1`).

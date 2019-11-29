@@ -2211,7 +2211,7 @@ pub struct Variant {
     pub id: NodeId,
     /// Span
     pub span: Span,
-    /// The visibility of the variant. Syntactically accepted but not semantically.
+    /// The visibility of the variant.
     pub vis: Visibility,
     /// Name of the variant.
     pub ident: Ident,

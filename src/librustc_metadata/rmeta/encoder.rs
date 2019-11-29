@@ -656,7 +656,7 @@ impl EncodeContext<'tcx> {
 
         record!(self.per_def.kind[def_id] <- EntryKind::Variant(self.lazy(data)));
         record!(self.per_def.visibility[def_id] <-
-            ty::Visibility::from_hir(enum_vis, enum_id, self.tcx));
+            ty::Visibility::from_hir(enum_vis, enum_id, self.tcx, false));
         record!(self.per_def.span[def_id] <- self.tcx.def_span(def_id));
         record!(self.per_def.attributes[def_id] <- &self.tcx.get_attrs(def_id)[..]);
         record!(self.per_def.children[def_id] <- variant.fields.iter().map(|f| {
@@ -699,13 +699,14 @@ impl EncodeContext<'tcx> {
             ctor: Some(def_id.index),
         };
 
-        // Variant constructors have the same visibility as the parent enums, unless marked as
-        // non-exhaustive, in which case they are lowered to `pub(crate)`.
+        // Variant constructors have the same visibility as the parent enums
+        // when no visibility is provided explicitly on the variant,
+        // unless marked as non-exhaustive, in which case they are lowered to `pub(crate)`.
         let enum_id = tcx.hir().as_local_hir_id(enum_did).unwrap();
         let enum_vis = &tcx.hir().expect_item(enum_id).vis;
-        let mut ctor_vis = ty::Visibility::from_hir(enum_vis, enum_id, tcx);
+        let mut ctor_vis = ty::Visibility::from_hir(enum_vis, enum_id, tcx, Some(enum_vis));
         if variant.is_field_list_non_exhaustive() && ctor_vis == ty::Visibility::Public {
-            ctor_vis = ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX));
+            ctor_vis = ty::Visibility::krate();
         }
 
         record!(self.per_def.kind[def_id] <- EntryKind::Variant(self.lazy(data)));
@@ -805,10 +806,10 @@ impl EncodeContext<'tcx> {
 
         // If the structure is marked as non_exhaustive then lower the visibility
         // to within the crate.
-        if adt_def.non_enum_variant().is_field_list_non_exhaustive() &&
-            ctor_vis == ty::Visibility::Public
+        if adt_def.non_enum_variant().is_field_list_non_exhaustive()
+            && ctor_vis == ty::Visibility::Public
         {
-            ctor_vis = ty::Visibility::Restricted(DefId::local(CRATE_DEF_INDEX));
+            ctor_vis = ty::Visibility::krate();
         }
 
         record!(self.per_def.kind[def_id] <- EntryKind::Struct(self.lazy(data), adt_def.repr));
