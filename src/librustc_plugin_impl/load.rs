@@ -47,7 +47,7 @@ pub fn load_plugins(sess: &Session,
     // do not report any error now. since crate attributes are
     // not touched by expansion, every use of plugin without
     // the feature enabled will result in an error later...
-    if sess.features_untracked().plugin {
+    if sess.features_untracked().active(sym::plugin) {
         for attr in &krate.attrs {
             if !attr.check_name(sym::plugin) {
                 continue;

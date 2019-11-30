@@ -342,7 +342,7 @@ impl<'a> Resolver<'a> {
             if let Some(args) = &segment.args {
                 self.session.span_err(args.span(), "generic arguments in macro path");
             }
-            if kind == MacroKind::Attr && !features.rustc_attrs &&
+            if kind == MacroKind::Attr && !features.active(sym::rustc_attrs) &&
                segment.ident.as_str().starts_with("rustc") {
                 let msg =
                     "attributes starting with `rustc` are reserved for use by the `rustc` compiler";

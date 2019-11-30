@@ -1029,7 +1029,7 @@ fn typeck_tables_of(tcx: TyCtxt<'_>, def_id: DefId) -> &ty::TypeckTables<'_> {
             let expected_type = fcx.normalize_associated_types_in(body.value.span, &expected_type);
             fcx.require_type_is_sized(expected_type, body.value.span, traits::ConstSized);
 
-            let revealed_ty = if tcx.features().impl_trait_in_bindings {
+            let revealed_ty = if tcx.features().active(sym::impl_trait_in_bindings) {
                 fcx.instantiate_opaque_types_from_value(
                     id,
                     &expected_type,
@@ -1173,7 +1173,7 @@ impl<'a, 'tcx> Visitor<'tcx> for GatherLocalsVisitor<'a, 'tcx> {
             Some(ref ty) => {
                 let o_ty = self.fcx.to_ty(&ty);
 
-                let revealed_ty = if self.fcx.tcx.features().impl_trait_in_bindings {
+                let revealed_ty = if self.fcx.tcx.features().active(sym::impl_trait_in_bindings) {
                     self.fcx.instantiate_opaque_types_from_value(
                         self.parent_id,
                         &o_ty,
@@ -1208,7 +1208,7 @@ impl<'a, 'tcx> Visitor<'tcx> for GatherLocalsVisitor<'a, 'tcx> {
         if let PatKind::Binding(_, _, ident, _) = p.kind {
             let var_ty = self.assign(p.span, p.hir_id, None);
 
-            if !self.fcx.tcx.features().unsized_locals {
+            if !self.fcx.tcx.features().active(sym::unsized_locals) {
                 self.fcx.require_type_is_sized(var_ty, p.span,
                                                traits::VariableType(p.hir_id));
             }
@@ -1335,7 +1335,7 @@ fn check_fn<'a, 'tcx>(
         // The check for a non-trivial pattern is a hack to avoid duplicate warnings
         // for simple cases like `fn foo(x: Trait)`,
         // where we would error once on the parameter as a whole, and once on the binding `x`.
-        if param.pat.simple_ident().is_none() && !fcx.tcx.features().unsized_locals {
+        if param.pat.simple_ident().is_none() && !fcx.tcx.features().active(sym::unsized_locals) {
             fcx.require_type_is_sized(param_ty, decl.output.span(), traits::SizedArgumentType);
         }
 
@@ -2372,7 +2372,7 @@ fn check_transparent(tcx: TyCtxt<'_>, sp: Span, def_id: DefId) {
     let sp = tcx.sess.source_map().def_span(sp);
 
     if adt.is_enum() {
-        if !tcx.features().transparent_enums {
+        if !tcx.features().active(sym::transparent_enums) {
             emit_feature_err(
                 &tcx.sess.parse_sess,
                 sym::transparent_enums,
@@ -2390,7 +2390,7 @@ fn check_transparent(tcx: TyCtxt<'_>, sp: Span, def_id: DefId) {
         }
     }
 
-    if adt.is_union() && !tcx.features().transparent_unions {
+    if adt.is_union() && !tcx.features().active(sym::transparent_unions) {
         emit_feature_err(&tcx.sess.parse_sess,
                          sym::transparent_unions,
                          sp,
@@ -2451,7 +2451,7 @@ pub fn check_enum<'tcx>(tcx: TyCtxt<'tcx>, sp: Span, vs: &'tcx [hir::Variant], i
 
     let repr_type_ty = def.repr.discr_type().to_ty(tcx);
     if repr_type_ty == tcx.types.i128 || repr_type_ty == tcx.types.u128 {
-        if !tcx.features().repr128 {
+        if !tcx.features().active(sym::repr128) {
             emit_feature_err(&tcx.sess.parse_sess,
                              sym::repr128,
                              sp,
@@ -2466,7 +2466,9 @@ pub fn check_enum<'tcx>(tcx: TyCtxt<'tcx>, sp: Span, vs: &'tcx [hir::Variant], i
         }
     }
 
-    if tcx.adt_def(def_id).repr.int.is_none() && tcx.features().arbitrary_enum_discriminant {
+    if tcx.adt_def(def_id).repr.int.is_none()
+        && tcx.features().active(sym::arbitrary_enum_discriminant)
+    {
         let is_unit =
             |var: &hir::Variant| match var.data {
                 hir::VariantData::Unit(..) => true,

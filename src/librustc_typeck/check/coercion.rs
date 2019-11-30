@@ -643,7 +643,7 @@ impl<'f, 'tcx> Coerce<'f, 'tcx> {
             }
         }
 
-        if has_unsized_tuple_coercion && !self.tcx.features().unsized_tuple_coercion {
+        if has_unsized_tuple_coercion && !self.tcx.features().active(sym::unsized_tuple_coercion) {
             feature_gate::emit_feature_err(
                 &self.tcx.sess.parse_sess,
                 sym::unsized_tuple_coercion,

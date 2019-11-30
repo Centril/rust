@@ -47,7 +47,7 @@ pub fn features(mut krate: ast::Crate, sess: &ParseSess, edition: Edition,
         } else { // the entire crate is unconfigured
             krate.attrs = Vec::new();
             krate.module.items = Vec::new();
-            return (krate, Features::new());
+            return (krate, Features::default());
         }
 
         features = get_features(&sess.span_diagnostic, &krate.attrs, edition, allow_features);
@@ -208,7 +208,10 @@ impl<'a> StripUnconfigured<'a> {
 
     /// If attributes are not allowed on expressions, emit an error for `attr`
     pub fn maybe_emit_expr_attr_err(&self, attr: &ast::Attribute) {
-        if !self.features.map(|features| features.stmt_expr_attributes).unwrap_or(true) {
+        if !self.features
+            .map(|features| features.active(sym::stmt_expr_attributes))
+            .unwrap_or(true)
+        {
             let mut err = feature_err(self.sess,
                                       sym::stmt_expr_attributes,
                                       attr.span,

@@ -213,7 +213,8 @@ impl<'tcx> Visitor<'tcx> for Collector<'_, 'tcx> {
             Rvalue::Ref(..) => {
                 self.candidates.push(Candidate::Ref(location));
             }
-            Rvalue::Repeat(..) if self.tcx.features().const_in_array_repeat_expressions => {
+            Rvalue::Repeat(..) if self.tcx.features().active(sym::const_in_array_repeat_expressions)
+            => {
                 // FIXME(#49147) only promote the element when it isn't `Copy`
                 // (so that code that can copy it at runtime is unaffected).
                 self.candidates.push(Candidate::Repeat(location));
@@ -402,7 +403,7 @@ impl<'tcx> Validator<'_, 'tcx> {
                 let statement = &self.body[loc.block].statements[loc.statement_index];
                 match &statement.kind {
                     StatementKind::Assign(box(_, Rvalue::Repeat(ref operand, _))) => {
-                        if !self.tcx.features().const_in_array_repeat_expressions {
+                        if !self.tcx.features().active(sym::const_in_array_repeat_expressions) {
                             return Err(Unpromotable);
                         }
 
@@ -1157,7 +1158,7 @@ crate fn should_suggest_const_in_array_repeat_expressions_attribute<'tcx>(
     };
 
     let should_promote = validator.validate_operand(operand).is_ok();
-    let feature_flag = tcx.features().const_in_array_repeat_expressions;
+    let feature_flag = tcx.features().active(sym::const_in_array_repeat_expressions);
     debug!("should_suggest_const_in_array_repeat_expressions_flag: mir_def_id={:?} \
             should_promote={:?} feature_flag={:?}", mir_def_id, should_promote, feature_flag);
     should_promote && !feature_flag

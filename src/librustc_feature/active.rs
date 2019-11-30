@@ -2,18 +2,10 @@
 
 use super::{State, Feature};
 
+use rustc_data_structures::fx::FxHashSet;
 use syntax_pos::edition::Edition;
 use syntax_pos::Span;
 use syntax_pos::symbol::{Symbol, sym};
-
-macro_rules! set {
-    ($field: ident) => {{
-        fn f(features: &mut Features, _: Span) {
-            features.$field = true;
-        }
-        f as fn(&mut Features, Span)
-    }}
-}
 
 macro_rules! declare_features {
     ($(
@@ -26,7 +18,12 @@ macro_rules! declare_features {
             &[$(
                 // (sym::$feature, $ver, $issue, $edition, set!($feature))
                 Feature {
-                    state: State::Active { set: set!($feature) },
+                    state: State::Active { set: {
+                        fn f(features: &mut Features, _: Span) {
+                            features.active_features.insert(sym::$feature);
+                        }
+                        f as fn(&mut Features, Span)
+                    } },
                     name: sym::$feature,
                     since: $ver,
                     issue: $issue,
@@ -36,31 +33,24 @@ macro_rules! declare_features {
             ),+];
 
         /// A set of features to be used by later passes.
-        #[derive(Clone)]
+        #[derive(Clone, Default)]
         pub struct Features {
             /// `#![feature]` attrs for language features, for error reporting.
             pub declared_lang_features: Vec<(Symbol, Span, Option<Symbol>)>,
             /// `#![feature]` attrs for non-language (library) features.
             pub declared_lib_features: Vec<(Symbol, Span)>,
-            $(
-                $(#[doc = $doc])*
-                pub $feature: bool
-            ),+
+            /// All the active feature gates.
+            active_features: FxHashSet<Symbol>,
         }
 
         impl Features {
-            pub fn new() -> Features {
-                Features {
-                    declared_lang_features: Vec::new(),
-                    declared_lib_features: Vec::new(),
-                    $($feature: false),+
-                }
+            /// Is the given feature active?
+            pub fn active(&self, feature: Symbol) -> bool {
+                self.active_features.contains(&feature)
             }
 
-            pub fn walk_feature_fields<F>(&self, mut f: F)
-                where F: FnMut(&str, bool)
-            {
-                $(f(stringify!($feature), self.$feature);)+
+            pub fn walk_feature_fields(&self, mut f: impl FnMut(Symbol, bool)) {
+                $(f(sym::$feature, self.active(sym::$feature));)+
             }
         }
     };
