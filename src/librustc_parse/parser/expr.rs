@@ -1138,14 +1138,7 @@ impl<'a> Parser<'a> {
             });
             if let Some(token) = &recovered {
                 self.bump();
-                self.struct_span_err(token.span, "float literals must have an integer part")
-                    .span_suggestion(
-                        token.span,
-                        "must have an integer part",
-                        pprust::token_to_string(token),
-                        Applicability::MachineApplicable,
-                    )
-                    .emit();
+                self.error_float_lits_must_have_int_part(&token);
             }
         }
 
@@ -1174,6 +1167,17 @@ impl<'a> Parser<'a> {
                 Some(Lit::from_lit_token(lit, span).unwrap_or_else(|_| unreachable!()))
             }
         }
+    }
+
+    fn error_float_lits_must_have_int_part(&self, token: &Token) {
+        self.struct_span_err(token.span, "float literals must have an integer part")
+            .span_suggestion(
+                token.span,
+                "must have an integer part",
+                pprust::token_to_string(token),
+                Applicability::MachineApplicable,
+            )
+            .emit();
     }
 
     fn report_lit_error(&self, err: LitError, lit: token::Lit, span: Span) {
