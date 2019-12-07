@@ -205,7 +205,7 @@ impl<'a> Parser<'a> {
                 ));
             }
         } else {
-            let msg = format!("expected type, found {}", self.this_token_descr());
+            let msg = format!("expected type, found {}", super::token_descr(&self.token));
             let mut err = self.fatal(&msg);
             err.span_label(self.token.span, "expected type");
             self.maybe_annotate_with_ascription(&mut err, true);

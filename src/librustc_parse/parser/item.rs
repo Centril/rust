@@ -1429,7 +1429,7 @@ impl<'a> Parser<'a> {
             self.expect_semi()?;
             body
         } else {
-            let token_str = self.this_token_descr();
+            let token_str = super::token_descr(&self.token);
             let mut err = self.fatal(&format!(
                 "expected `where`, `{{`, `(`, or `;` after struct name, found {}",
                 token_str
@@ -1455,7 +1455,7 @@ impl<'a> Parser<'a> {
             let (fields, recovered) = self.parse_record_struct_body()?;
             VariantData::Struct(fields, recovered)
         } else {
-            let token_str = self.this_token_descr();
+            let token_str = super::token_descr(&self.token);
             let mut err = self.fatal(&format!(
                 "expected `where` or `{{` after union name, found {}", token_str));
             err.span_label(self.token.span, "expected `where` or `{` after union name");
@@ -1492,7 +1492,7 @@ impl<'a> Parser<'a> {
             }
             self.eat(&token::CloseDelim(token::Brace));
         } else {
-            let token_str = self.this_token_descr();
+            let token_str = super::token_descr(&self.token);
             let mut err = self.fatal(&format!(
                     "expected `where`, or `{{` after struct name, found {}", token_str));
             err.span_label(self.token.span, "expected `where`, or `{` after struct name");
@@ -1574,7 +1574,7 @@ impl<'a> Parser<'a> {
             _ => {
                 let sp = self.sess.source_map().next_point(self.prev_span);
                 let mut err = self.struct_span_err(sp, &format!("expected `,`, or `}}`, found {}",
-                                                                self.this_token_descr()));
+                                                                super::token_descr(&self.token)));
                 if self.token.is_ident() {
                     // This is likely another field; emit the diagnostic and keep going
                     err.span_suggestion(

@@ -2,6 +2,7 @@ use super::{Parser, TokenType, PathStyle};
 use rustc_errors::PResult;
 use syntax::attr;
 use syntax::ast;
+use syntax::print::pprust;
 use syntax::util::comments;
 use syntax::token::{self, Nonterminal};
 use syntax_pos::{Span, Symbol};
@@ -150,7 +151,7 @@ impl<'a> Parser<'a> {
                 (attr_sp, item, style)
             }
             _ => {
-                let token_str = self.this_token_to_string();
+                let token_str = pprust::token_to_string(&self.token);
                 return Err(self.fatal(&format!("expected `#`, found `{}`", token_str)));
             }
         };
@@ -322,7 +323,7 @@ impl<'a> Parser<'a> {
             Err(ref mut err) => err.cancel(),
         }
 
-        let found = self.this_token_to_string();
+        let found = pprust::token_to_string(&self.token);
         let msg = format!("expected unsuffixed literal or identifier, found `{}`", found);
         Err(self.diagnostic().struct_span_err(self.token.span, &msg))
     }
