@@ -473,21 +473,22 @@ impl<'a> Parser<'a> {
                 let (span, e) = self.interpolated_or_expr_span(e)?;
                 (lo.to(span), self.mk_unary(UnOp::Deref, e))
             }
-            token::BinOp(token::And) | token::AndAnd => {
-                self.parse_borrow_expr(lo)?
-            }
-            token::Ident(..) if self.token.is_keyword(kw::Box) => {
-                self.bump();
-                let e = self.parse_prefix_expr(None);
-                let (span, e) = self.interpolated_or_expr_span(e)?;
-                let span = lo.to(span);
-                self.sess.gated_spans.gate(sym::box_syntax, span);
-                (span, ExprKind::Box(e))
-            }
+            token::BinOp(token::And) | token::AndAnd => self.parse_borrow_expr(lo)?,
+            token::Ident(..) if self.token.is_keyword(kw::Box) => self.parse_box_expr(lo)?,
             token::Ident(..) if self.is_mistaken_not_ident_negation() => self.recover_not_expr(lo)?,
             _ => return self.parse_dot_or_call_expr(Some(attrs)),
         };
         return Ok(self.mk_expr(lo.to(hi), ex, attrs));
+    }
+
+    /// Parse `box expr`.
+    fn parse_box_expr(&mut self, lo: Span) -> PResult<'a, (Span, ExprKind)> {
+        self.bump();
+        let e = self.parse_prefix_expr(None);
+        let (span, e) = self.interpolated_or_expr_span(e)?;
+        let span = lo.to(span);
+        self.sess.gated_spans.gate(sym::box_syntax, span);
+        Ok((span, ExprKind::Box(e)))
     }
 
     fn is_mistaken_not_ident_negation(&self) -> bool {
