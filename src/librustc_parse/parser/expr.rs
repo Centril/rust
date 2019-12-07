@@ -685,11 +685,7 @@ impl<'a> Parser<'a> {
     fn parse_dot_or_call_expr_with_(&mut self, e0: P<Expr>, lo: Span) -> PResult<'a, P<Expr>> {
         let mut e = e0;
         loop {
-            // expr?
-            while self.eat(&token::Question) {
-                let hi = self.prev_span;
-                e = self.mk_expr(lo.to(hi), ExprKind::Try(e), AttrVec::new());
-            }
+            e = self.parse_dot_base_expr(lo, e);
 
             // expr.f
             if self.eat(&token::Dot) {
@@ -704,6 +700,14 @@ impl<'a> Parser<'a> {
             }
         }
         return Ok(e);
+    }
+
+    /// Parse `expr ?*`.
+    fn parse_dot_base_expr(&mut self, lo: Span, mut expr: P<Expr>) -> P<Expr> {
+        while self.eat(&token::Question) {
+            expr = self.mk_expr(lo.to(self.prev_span), ExprKind::Try(expr), AttrVec::new());
+        }
+        expr
     }
 
     fn parse_dot_suffix_expr(&mut self, lo: Span, base: P<Expr>) -> PResult<'a, P<Expr>> {
