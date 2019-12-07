@@ -484,28 +484,25 @@ impl<'a> Parser<'a> {
                 self.sess.gated_spans.gate(sym::box_syntax, span);
                 (span, ExprKind::Box(e))
             }
-            token::Ident(..) if self.token.is_ident_named(sym::not) => {
-                // `not` is just an ordinary identifier in Rust-the-language,
-                // but as `rustc`-the-compiler, we can issue clever diagnostics
-                // for confused users who really want to say `!`
-                let token_cannot_continue_expr = |t: &Token| match t.kind {
-                    // These tokens can start an expression after `!`, but
-                    // can't continue an expression after an ident
-                    token::Ident(name, is_raw) => token::ident_can_begin_expr(name, t.span, is_raw),
-                    token::Literal(..) | token::Pound => true,
-                    _ => t.is_whole_expr(),
-                };
-                if !self.look_ahead(1, token_cannot_continue_expr) {
-                    return self.parse_dot_or_call_expr(Some(attrs));
-                }
-
-                self.recover_not_expr(lo)?
-            }
+            token::Ident(..) if self.is_mistaken_not_ident_negation() => self.recover_not_expr(lo)?,
             _ => return self.parse_dot_or_call_expr(Some(attrs)),
         };
         return Ok(self.mk_expr(lo.to(hi), ex, attrs));
     }
 
+    fn is_mistaken_not_ident_negation(&self) -> bool {
+        let token_cannot_continue_expr = |t: &Token| match t.kind {
+            // These tokens can start an expression after `!`, but
+            // can't continue an expression after an ident
+            token::Ident(name, is_raw) => token::ident_can_begin_expr(name, t.span, is_raw),
+            token::Literal(..) | token::Pound => true,
+            _ => t.is_whole_expr(),
+        };
+        self.token.is_ident_named(sym::not)
+            && self.look_ahead(1, token_cannot_continue_expr)
+    }
+
+    /// Recover on `not expr` in favor of `!expr`.
     fn recover_not_expr(&mut self, lo: Span) -> PResult<'a, (Span, ExprKind)> {
         self.bump();
         // Emit the error ...
