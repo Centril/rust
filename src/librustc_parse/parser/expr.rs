@@ -439,15 +439,15 @@ impl<'a> Parser<'a> {
         let lo = self.token.span;
         // Note: when adding new unary operators, don't forget to adjust TokenKind::can_begin_expr()
         let (hi, ex) = match self.token.kind {
-            token::Not => self.parse_not_expr(lo)?,
-            token::Tilde => self.recover_tilde_expr(lo)?,
-            token::BinOp(token::Minus) => self.parse_neg_expr(lo)?,
-            token::BinOp(token::Star) => self.parse_deref_expr(lo)?,
-            token::BinOp(token::And) | token::AndAnd => self.parse_borrow_expr(lo)?,
-            token::Ident(..) if self.token.is_keyword(kw::Box) => self.parse_box_expr(lo)?,
-            token::Ident(..) if self.is_mistaken_not_ident_negation() => self.recover_not_expr(lo)?,
+            token::Not => self.parse_not_expr(lo),
+            token::Tilde => self.recover_tilde_expr(lo),
+            token::BinOp(token::Minus) => self.parse_neg_expr(lo),
+            token::BinOp(token::Star) => self.parse_deref_expr(lo),
+            token::BinOp(token::And) | token::AndAnd => self.parse_borrow_expr(lo),
+            token::Ident(..) if self.token.is_keyword(kw::Box) => self.parse_box_expr(lo),
+            token::Ident(..) if self.is_mistaken_not_ident_negation() => self.recover_not_expr(lo),
             _ => return self.parse_dot_or_call_expr(Some(attrs)),
-        };
+        }?;
         return Ok(self.mk_expr(lo.to(hi), ex, attrs));
     }
 
