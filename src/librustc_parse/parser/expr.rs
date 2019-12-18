@@ -835,6 +835,10 @@ impl<'a> Parser<'a> {
         let attrs = AttrVec::new();
 
         // Note: when adding new syntax here, don't forget to adjust `TokenKind::can_begin_expr()`.
+        //
+        // Also note that `Span::rust_2018()` is somewhat expensive; don't get it repeatedly.
+        // Instead, prefer gating the call on something else first.
+
         let lo = self.token.span;
         if let token::Literal(_) = self.token.kind {
             // This match arm is a special-case of the `_` match arm below and
@@ -903,18 +907,13 @@ impl<'a> Parser<'a> {
             //       |             ^ expected expression
             self.bump();
             Ok(self.mk_expr_err(self.token.span))
-        } else if self.token.span.rust_2018() {
-            // `Span::rust_2018()` is somewhat expensive; don't get it repeatedly.
-            if self.check_keyword(kw::Async) {
-                if self.is_async_block() { // Check for `async {` and `async move {`.
-                    self.parse_async_block(attrs)
-                } else {
-                    self.parse_closure_expr(attrs)
-                }
-            } else if self.eat_keyword(kw::Await) {
-                self.recover_incorrect_await_syntax(lo, self.prev_span, attrs)
+        } else if self.check_keyword(kw::Await) && self.token.span.rust_2018() {
+            self.recover_incorrect_await_syntax(lo, attrs)
+        } else if self.check_keyword(kw::Async) && self.token.span.rust_2018() {
+            if self.is_async_block() { // Check for `async {` and `async move {`.
+                self.parse_async_block(attrs)
             } else {
-                self.parse_lit_expr(attrs)
+                self.parse_closure_expr(attrs)
             }
         } else {
             self.parse_lit_expr(attrs)
@@ -1767,9 +1766,9 @@ impl<'a> Parser<'a> {
     ) -> Option<PResult<'a, P<Expr>>> {
         let struct_allowed = !self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL);
         if struct_allowed || self.is_certainly_not_a_block() {
-            // This is a struct literal, but we don't can't accept them here.
             let expr = self.parse_struct_expr(lo, path.clone(), attrs.clone());
             if let (Ok(expr), false) = (&expr, struct_allowed) {
+                // This is a struct literal, but we don't can't accept them here.
                 self.error_struct_lit_not_allowed_here(lo, expr.span);
             }
             return Some(expr);

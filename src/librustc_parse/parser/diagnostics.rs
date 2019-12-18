@@ -972,9 +972,10 @@ impl<'a> Parser<'a> {
     pub(super) fn recover_incorrect_await_syntax(
         &mut self,
         lo: Span,
-        await_sp: Span,
         attrs: AttrVec,
     ) -> PResult<'a, P<Expr>> {
+        self.bump(); // `await`
+        let await_sp = self.prev_span;
         let (hi, expr, is_question) = if self.token == token::Not {
             // Handle `await!(<expr>)`.
             self.recover_await_macro()?
