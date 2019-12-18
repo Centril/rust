@@ -856,6 +856,8 @@ impl<'a> Parser<'a> {
         } else if self.eat_lt() {
             let (qself, path) = self.parse_qpath(PathStyle::Expr)?;
             Ok(self.mk_expr(lo.to(path.span), ExprKind::Path(Some(qself), path), attrs))
+        } else if self.check_keyword(kw::Async) {
+            self.parse_async_expr(attrs)
         } else if self.token.is_path_start() {
             self.parse_path_start_expr(attrs)
         } else if self.check_keyword(kw::Move) || self.check_keyword(kw::Static) {
@@ -909,12 +911,6 @@ impl<'a> Parser<'a> {
             Ok(self.mk_expr_err(self.token.span))
         } else if self.check_keyword(kw::Await) && self.token.span.rust_2018() {
             self.recover_incorrect_await_syntax(lo, attrs)
-        } else if self.check_keyword(kw::Async) && self.token.span.rust_2018() {
-            if self.is_async_block() { // Check for `async {` and `async move {`.
-                self.parse_async_block(attrs)
-            } else {
-                self.parse_closure_expr(attrs)
-            }
         } else {
             self.parse_lit_expr(attrs)
         }
@@ -1722,6 +1718,74 @@ impl<'a> Parser<'a> {
         !self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL)
     }
 
+    /// Parse an `async $block` or `async $closure` expression.
+    fn parse_async_expr(&mut self, attrs: AttrVec) -> PResult<'a, P<Expr>> {
+        // First make sure we don't parse an `async { ... }`
+        // struct literal on 2015 as an `async` block or closure.
+        let async_span = self.token.span;
+        let allowed = async_span.rust_2018();
+        let is_block = self.is_async_block(); // Block vs. closure?
+        if !allowed
+            && !self.is_async_closure()
+            && (!is_block || self.is_certainly_async_struct_lit())
+        {
+            // Parsing `async { ... }` struct literal on Rust 2015.
+            return self.parse_path_start_expr(attrs);
+        }
+
+        // Parse the actual expression:
+        let expr = if is_block {
+            self.parse_async_block(attrs)
+        } else {
+            self.parse_closure_expr(attrs)
+        }?;
+
+        // Are we on Rust 2015 where this is not allowed?
+        if !allowed {
+            self.error_async_on_2015(async_span, &expr);
+        }
+
+        Ok(expr)
+    }
+
+    /// Is this an `async { ... }`  struct literal?
+    fn is_certainly_async_struct_lit(&self) -> bool {
+        self.look_ahead(1, |t| *t == token::OpenDelim(token::Brace)) && (
+            // `async {}` literal
+            self.look_ahead(2, |t| *t == token::CloseDelim(token::Brace))
+            // Not a block so it must be a struct literal.
+            || self.is_certainly_not_a_block(2)
+        )
+    }
+
+    fn is_async_block(&self) -> bool {
+        let brace_ahead = |d| self.look_ahead(d, |t| *t == token::OpenDelim(token::Brace));
+        brace_ahead(1)
+        || self.is_keyword_ahead(1, &[kw::Move]) && brace_ahead(2)
+    }
+
+    fn is_async_closure(&self) -> bool {
+        const CLOSURE_TOKENS: &[TokenKind] = &[token::BinOp(token::Or), token::OrOr];
+        let closure_ahead = |d| self.look_ahead(d, |t| CLOSURE_TOKENS.contains(&t.kind));
+        closure_ahead(1)
+        || self.is_keyword_ahead(1, &[kw::Move]) && closure_ahead(2)
+    }
+
+    /// Errors on `async` blocks or closures on Rust 2015.
+    fn error_async_on_2015(&self, async_span: Span, expr: &Expr) {
+        let form = match expr.kind {
+            ExprKind::Async(..) => "block",
+            ExprKind::Closure(..) => " closure",
+            _ => panic!("parsed neither async block nor closure"),
+        };
+
+        self.struct_span_err(async_span, &format!("`async` {} not allowed on Rust 2015", form))
+            .note(&format!("to use an `async` {}, switch to Rust 2018", form))
+            .help("set `edition = \"2018\"` in `Cargo.toml`")
+            .note("for more on editions, read https://doc.rust-lang.org/edition-guide")
+            .emit();
+    }
+
     /// Parses an `async move? {...}` expression.
     fn parse_async_block(&mut self, mut attrs: AttrVec) -> PResult<'a, P<Expr>> {
         let lo = self.token.span;
@@ -1733,27 +1797,16 @@ impl<'a> Parser<'a> {
         Ok(self.mk_expr(lo.to(self.prev_span), kind, attrs))
     }
 
-    fn is_async_block(&self) -> bool {
-        self.token.is_keyword(kw::Async) &&
-        (
-            ( // `async move {`
-                self.is_keyword_ahead(1, &[kw::Move]) &&
-                self.look_ahead(2, |t| *t == token::OpenDelim(token::Brace))
-            ) || ( // `async {`
-                self.look_ahead(1, |t| *t == token::OpenDelim(token::Brace))
-            )
-        )
-    }
-
-    fn is_certainly_not_a_block(&self) -> bool {
-        self.look_ahead(1, |t| t.is_ident()) && (
+    /// Is the start at `dist` tokens from here certainly not a block form?
+    fn is_certainly_not_a_block(&self, dist: usize) -> bool {
+        self.look_ahead(dist, |t| t.is_ident()) && (
             // `{ ident, ` cannot start a block.
-            self.look_ahead(2, |t| t == &token::Comma) ||
-            self.look_ahead(2, |t| t == &token::Colon) && (
+            self.look_ahead(dist + 1, |t| t == &token::Comma) ||
+            self.look_ahead(dist + 1, |t| t == &token::Colon) && (
                 // `{ ident: token, ` cannot start a block.
-                self.look_ahead(4, |t| t == &token::Comma) ||
+                self.look_ahead(dist + 3, |t| t == &token::Comma) ||
                 // `{ ident: ` cannot start a block unless it's a type ascription `ident: Type`.
-                self.look_ahead(3, |t| !t.can_begin_type())
+                self.look_ahead(dist + 2, |t| !t.can_begin_type())
             )
         )
     }
@@ -1765,7 +1818,7 @@ impl<'a> Parser<'a> {
         attrs: &AttrVec,
     ) -> Option<PResult<'a, P<Expr>>> {
         let struct_allowed = !self.restrictions.contains(Restrictions::NO_STRUCT_LITERAL);
-        if struct_allowed || self.is_certainly_not_a_block() {
+        if struct_allowed || self.is_certainly_not_a_block(1) {
             let expr = self.parse_struct_expr(lo, path.clone(), attrs.clone());
             if let (Ok(expr), false) = (&expr, struct_allowed) {
                 // This is a struct literal, but we don't can't accept them here.

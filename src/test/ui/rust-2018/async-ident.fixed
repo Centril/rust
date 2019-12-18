@@ -55,7 +55,7 @@ fn main() {
     struct r#async {}
     //~^ ERROR async
     //~| WARN hard error in the 2018 edition
-    let r#async: r#async = r#async {};
+    let r#async: r#async = async {};
     //~^ ERROR async
     //~| WARN hard error in the 2018 edition
     //~| ERROR async

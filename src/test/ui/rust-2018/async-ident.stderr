@@ -1,3 +1,13 @@
+error: `async` block not allowed on Rust 2015
+  --> $DIR/async-ident.rs:58:24
+   |
+LL |     let async: async = async {};
+   |                        ^^^^^
+   |
+   = note: to use an `async` block, switch to Rust 2018
+   = help: set `edition = "2018"` in `Cargo.toml`
+   = note: for more on editions, read https://doc.rust-lang.org/edition-guide
+
 error: `async` is a keyword in the 2018 edition
   --> $DIR/async-ident.rs:7:4
    |
@@ -112,15 +122,6 @@ LL |     let async: async = async {};
    = note: for more information, see issue #49716 <https://github.com/rust-lang/rust/issues/49716>
 
 error: `async` is a keyword in the 2018 edition
-  --> $DIR/async-ident.rs:58:24
-   |
-LL |     let async: async = async {};
-   |                        ^^^^^ help: you can use a raw identifier to stay compatible: `r#async`
-   |
-   = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in the 2018 edition!
-   = note: for more information, see issue #49716 <https://github.com/rust-lang/rust/issues/49716>
-
-error: `async` is a keyword in the 2018 edition
   --> $DIR/async-ident.rs:69:19
    |
 LL |     () => (pub fn async() {})
@@ -138,5 +139,17 @@ LL |     (async) => (1)
    = warning: this was previously accepted by the compiler but is being phased out; it will become a hard error in the 2018 edition!
    = note: for more information, see issue #49716 <https://github.com/rust-lang/rust/issues/49716>
 
-error: aborting due to 15 previous errors
+error[E0308]: mismatched types
+  --> $DIR/async-ident.rs:58:24
+   |
+LL |     let async: async = async {};
+   |                -----   ^^^^^^^^ expected struct `main::async`, found opaque type
+   |                |
+   |                expected due to this
+   |
+   = note:   expected struct `main::async`
+           found opaque type `impl std::future::Future`
 
+error: aborting due to 16 previous errors
+
+For more information about this error, try `rustc --explain E0308`.
