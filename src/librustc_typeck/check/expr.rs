@@ -283,7 +283,16 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             ExprKind::Field(ref base, field) => self.check_field(expr, needs, &base, field),
             ExprKind::Index(ref base, ref idx) => self.check_expr_index(base, idx, needs, expr),
             ExprKind::Yield(ref value, ref src) => self.check_expr_yield(value, expr, src),
-            hir::ExprKind::Err => tcx.types.err,
+            ExprKind::Infer => {
+                let ty = expected.coercion_target_type(self, expr.span);
+                let ty = self.resolve_vars_if_possible(&ty);
+                let konst = self.ct_infer(ty, None, expr.span);
+                let konst = self.resolve_vars_if_possible(&konst);
+                self.write_const(expr.hir_id, konst);
+                let ty = self.resolve_vars_if_possible(&ty);
+                ty
+            }
+            ExprKind::Err => tcx.types.err,
         }
     }
 

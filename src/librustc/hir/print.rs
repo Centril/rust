@@ -1407,6 +1407,7 @@ impl<'a> State<'a> {
                 self.word_space("yield");
                 self.print_expr_maybe_paren(&expr, parser::PREC_JUMP);
             }
+            hir::ExprKind::Infer => self.s.word("_"),
             hir::ExprKind::Err => {
                 self.popen();
                 self.s.word("/*ERROR*/");

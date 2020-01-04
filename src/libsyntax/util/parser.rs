@@ -276,6 +276,7 @@ pub enum ExprPrecedence {
     Array,
     Repeat,
     Tup,
+    Infer,
     Lit,
     Path,
     Paren,
@@ -340,6 +341,7 @@ impl ExprPrecedence {
             ExprPrecedence::Array |
             ExprPrecedence::Repeat |
             ExprPrecedence::Tup |
+            ExprPrecedence::Infer |
             ExprPrecedence::Lit |
             ExprPrecedence::Path |
             ExprPrecedence::Paren |

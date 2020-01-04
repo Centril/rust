@@ -188,7 +188,11 @@ impl<'a, 'tcx> ExprUseVisitor<'a, 'tcx> {
         self.walk_adjustment(expr);
 
         match expr.kind {
-            hir::ExprKind::Path(_) => {}
+            hir::ExprKind::Path(_)
+            | hir::ExprKind::Continue(..)
+            | hir::ExprKind::Lit(..)
+            | hir::ExprKind::Infer
+            | hir::ExprKind::Err => {}
 
             hir::ExprKind::Type(ref subexpr, _) => self.walk_expr(subexpr),
 
@@ -259,8 +263,6 @@ impl<'a, 'tcx> ExprUseVisitor<'a, 'tcx> {
                 }
                 self.consume_exprs(&ia.inputs_exprs);
             }
-
-            hir::ExprKind::Continue(..) | hir::ExprKind::Lit(..) | hir::ExprKind::Err => {}
 
             hir::ExprKind::Loop(ref blk, _, _) => {
                 self.walk_block(blk);

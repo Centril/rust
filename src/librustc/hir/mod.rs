@@ -1430,6 +1430,7 @@ impl Expr<'_> {
             ExprKind::Tup(_) => ExprPrecedence::Tup,
             ExprKind::Binary(op, ..) => ExprPrecedence::Binary(op.node.into()),
             ExprKind::Unary(..) => ExprPrecedence::Unary,
+            ExprKind::Infer => ExprPrecedence::Infer,
             ExprKind::Lit(_) => ExprPrecedence::Lit,
             ExprKind::Type(..) | ExprKind::Cast(..) => ExprPrecedence::Cast,
             ExprKind::DropTemps(ref expr, ..) => expr.precedence(),
@@ -1511,6 +1512,7 @@ impl Expr<'_> {
             | ExprKind::Yield(..)
             | ExprKind::Cast(..)
             | ExprKind::DropTemps(..)
+            | ExprKind::Infer
             | ExprKind::Err => false,
         }
     }
@@ -1705,6 +1707,10 @@ pub enum ExprKind<'hir> {
 
     /// A suspension point for generators (i.e., `yield <expr>`).
     Yield(&'hir Expr<'hir>, YieldSource),
+
+    /// `ExprKind::Infer` means the value should be inferred instead of it having been
+    /// specified. This can appear anywhere in an expression.
+    Infer,
 
     /// A placeholder for an expression that wasn't syntactically well formed in some way.
     Err,

@@ -1,8 +1,8 @@
-error: expected expression, found reserved identifier `_`
+error[E0282]: type annotations needed
   --> $DIR/underscore.rs:8:9
    |
 LL |         _
-   |         ^ expected expression
+   |         ^ cannot infer type
    | 
   ::: $DIR/main.rs:5:5
    |
@@ -11,3 +11,4 @@ LL |     underscore!();
 
 error: aborting due to previous error
 
+For more information about this error, try `rustc --explain E0282`.

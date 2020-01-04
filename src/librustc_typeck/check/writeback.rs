@@ -11,7 +11,7 @@ use rustc::infer::error_reporting::TypeAnnotationNeeded::E0282;
 use rustc::infer::InferCtxt;
 use rustc::ty::adjustment::{Adjust, Adjustment, PointerCast};
 use rustc::ty::fold::{TypeFoldable, TypeFolder};
-use rustc::ty::{self, Ty, TyCtxt};
+use rustc::ty::{self, Const, Ty, TyCtxt};
 use rustc::util::nodemap::DefIdSet;
 use rustc_data_structures::sync::Lrc;
 use rustc_span::Span;
@@ -126,6 +126,12 @@ impl<'cx, 'tcx> WritebackCx<'cx, 'tcx> {
         debug!("write_ty_to_tables({:?}, {:?})", hir_id, ty);
         assert!(!ty.needs_infer() && !ty.has_placeholders());
         self.tables.node_types_mut().insert(hir_id, ty);
+    }
+
+    fn write_const_to_tables(&mut self, hir_id: hir::HirId, konst: &'tcx Const<'tcx>) {
+        debug!("write_const_to_tables({:?}, {:?})", hir_id, konst);
+        assert!(!konst.needs_infer() && !konst.has_placeholders());
+        self.tables.node_consts_mut().insert(hir_id, konst);
     }
 
     // Hacky hack: During type-checking, we treat *all* operators
@@ -269,6 +275,11 @@ impl<'cx, 'tcx> Visitor<'tcx> for WritebackCx<'cx, 'tcx> {
             }
             hir::ExprKind::Field(..) => {
                 self.visit_field_id(e.hir_id);
+            }
+            hir::ExprKind::Infer => {
+                let konst = self.fcx.node_const(e.hir_id);
+                let konst = self.resolve(&konst, &e.span);
+                self.write_const_to_tables(e.hir_id, konst);
             }
             _ => {}
         }
@@ -671,6 +682,11 @@ impl<'cx, 'tcx> TypeFolder<'tcx> for Resolver<'cx, 'tcx> {
                 debug!("Resolver::fold_const: input const `{:?}` not fully resolvable", ct);
                 // FIXME: we'd like to use `self.report_error`, but it doesn't yet
                 // accept a &'tcx ty::Const.
+                self.tcx
+                    .sess
+                    .struct_span_err(self.span.to_span(self.tcx), "cannot infer value")
+                    .emit();
+
                 self.tcx().consts.err
             }
         }

@@ -242,6 +242,10 @@ fn make_mirror_unadjusted<'a, 'tcx>(
             }
         }
 
+        hir::ExprKind::Infer => {
+            ExprKind::Literal { literal: cx.tables().node_const(expr.hir_id), user_ty: None }
+        }
+
         hir::ExprKind::Lit(ref lit) => ExprKind::Literal {
             literal: cx.const_eval_literal(&lit.node, expr_ty, lit.span, false),
             user_ty: None,

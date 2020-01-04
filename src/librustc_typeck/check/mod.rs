@@ -2848,6 +2848,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         }
     }
 
+    #[inline]
+    pub fn write_const(&self, id: hir::HirId, konst: &'tcx Const<'tcx>) {
+        debug!("write_const({:?}, {:?}) in fcx {}", id, konst, self.tag());
+        self.tables.borrow_mut().node_consts_mut().insert(id, konst);
+    }
+
     pub fn write_field_index(&self, hir_id: hir::HirId, index: usize) {
         self.tables.borrow_mut().field_indices_mut().insert(hir_id, index);
     }
@@ -3188,6 +3194,21 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             None => {
                 bug!(
                     "no type for node {}: {} in fcx {}",
+                    id,
+                    self.tcx.hir().node_to_string(id),
+                    self.tag()
+                );
+            }
+        }
+    }
+
+    pub fn node_const(&self, id: hir::HirId) -> &'tcx Const<'tcx> {
+        match self.tables.borrow().node_consts().get(id) {
+            Some(&t) => t,
+            None if self.is_tainted_by_errors() => self.tcx.consts.err,
+            None => {
+                bug!(
+                    "no const for node {}: {} in fcx {}",
                     id,
                     self.tcx.hir().node_to_string(id),
                     self.tag()

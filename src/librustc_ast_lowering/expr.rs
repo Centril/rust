@@ -23,6 +23,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     pub(super) fn lower_expr_mut(&mut self, e: &Expr) -> hir::Expr<'hir> {
         let kind = match e.kind {
+            ExprKind::Infer => hir::ExprKind::Infer,
             ExprKind::Box(ref inner) => hir::ExprKind::Box(self.lower_expr(inner)),
             ExprKind::Array(ref exprs) => hir::ExprKind::Array(self.lower_exprs(exprs)),
             ExprKind::Repeat(ref expr, ref count) => {

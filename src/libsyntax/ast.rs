@@ -1092,6 +1092,7 @@ impl Expr {
             ExprKind::Tup(_) => ExprPrecedence::Tup,
             ExprKind::Binary(op, ..) => ExprPrecedence::Binary(op.node),
             ExprKind::Unary(..) => ExprPrecedence::Unary,
+            ExprKind::Infer => ExprPrecedence::Infer,
             ExprKind::Lit(_) => ExprPrecedence::Lit,
             ExprKind::Type(..) | ExprKind::Cast(..) => ExprPrecedence::Cast,
             ExprKind::Let(..) => ExprPrecedence::Let,
@@ -1138,6 +1139,9 @@ pub enum RangeLimits {
 
 #[derive(Clone, RustcEncodable, RustcDecodable, Debug)]
 pub enum ExprKind {
+    /// This means the value should be inferred instead of it having been
+    /// specified. This can appear anywhere in an expression.
+    Infer,
     /// A `box x` expression.
     Box(P<Expr>),
     /// An array (`[a, b, c, d]`)

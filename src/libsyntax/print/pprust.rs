@@ -2196,6 +2196,7 @@ impl<'a> State<'a> {
                 self.s.space();
                 self.print_block_with_attrs(blk, attrs)
             }
+            ast::ExprKind::Infer => self.s.word("_"),
             ast::ExprKind::Err => {
                 self.popen();
                 self.s.word("/*ERROR*/");

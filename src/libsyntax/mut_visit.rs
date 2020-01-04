@@ -1239,7 +1239,7 @@ pub fn noop_visit_expr<T: MutVisitor>(Expr { kind, id, span, attrs }: &mut Expr,
         }
         ExprKind::Try(expr) => vis.visit_expr(expr),
         ExprKind::TryBlock(body) => vis.visit_block(body),
-        ExprKind::Lit(_) | ExprKind::Err => {}
+        ExprKind::Lit(_) | ExprKind::Infer | ExprKind::Err => {}
     }
     vis.visit_id(id);
     vis.visit_span(span);

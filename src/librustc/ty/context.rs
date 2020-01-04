@@ -336,6 +336,11 @@ pub struct TypeckTables<'tcx> {
     /// belongs, but it may not exist if it's a tuple field (`tuple.0`).
     field_indices: ItemLocalMap<usize>,
 
+    /// Stores the consts for various nodes in the AST. Note that this table
+    /// is not guaranteed to be populated until after typeck. See
+    /// typeck::check::fn_ctxt for details.
+    node_consts: ItemLocalMap<&'tcx Const<'tcx>>,
+
     /// Stores the types for various nodes in the AST. Note that this table
     /// is not guaranteed to be populated until after typeck. See
     /// typeck::check::fn_ctxt for details.
@@ -444,6 +449,7 @@ impl<'tcx> TypeckTables<'tcx> {
             field_indices: Default::default(),
             user_provided_types: Default::default(),
             user_provided_sigs: Default::default(),
+            node_consts: Default::default(),
             node_types: Default::default(),
             node_substs: Default::default(),
             adjustments: Default::default(),
@@ -516,6 +522,25 @@ impl<'tcx> TypeckTables<'tcx> {
             local_id_root: self.local_id_root,
             data: &mut self.user_provided_types,
         }
+    }
+
+    pub fn node_consts(&self) -> LocalTableInContext<'_, &'tcx Const<'tcx>> {
+        LocalTableInContext { local_id_root: self.local_id_root, data: &self.node_consts }
+    }
+
+    pub fn node_consts_mut(&mut self) -> LocalTableInContextMut<'_, &'tcx Const<'tcx>> {
+        LocalTableInContextMut { local_id_root: self.local_id_root, data: &mut self.node_consts }
+    }
+
+    pub fn node_const(&self, id: hir::HirId) -> &'tcx Const<'tcx> {
+        self.node_const_opt(id).unwrap_or_else(|| {
+            bug!("node_type: no const for node `{}`", tls::with(|tcx| tcx.hir().node_to_string(id)))
+        })
+    }
+
+    pub fn node_const_opt(&self, id: hir::HirId) -> Option<&'tcx Const<'tcx>> {
+        validate_hir_id_for_typeck_tables(self.local_id_root, id, false);
+        self.node_consts.get(&id.local_id).copied()
     }
 
     pub fn node_types(&self) -> LocalTableInContext<'_, Ty<'tcx>> {
@@ -705,6 +730,7 @@ impl<'a, 'tcx> HashStable<StableHashingContext<'a>> for TypeckTables<'tcx> {
             ref field_indices,
             ref user_provided_types,
             ref user_provided_sigs,
+            ref node_consts,
             ref node_types,
             ref node_substs,
             ref adjustments,
@@ -730,6 +756,7 @@ impl<'a, 'tcx> HashStable<StableHashingContext<'a>> for TypeckTables<'tcx> {
             field_indices.hash_stable(hcx, hasher);
             user_provided_types.hash_stable(hcx, hasher);
             user_provided_sigs.hash_stable(hcx, hasher);
+            node_consts.hash_stable(hcx, hasher);
             node_types.hash_stable(hcx, hasher);
             node_substs.hash_stable(hcx, hasher);
             adjustments.hash_stable(hcx, hasher);
