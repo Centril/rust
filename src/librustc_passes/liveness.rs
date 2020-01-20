@@ -522,6 +522,8 @@ fn visit_expr<'tcx>(ir: &mut IrMaps<'tcx>, expr: &'tcx Expr<'tcx>) {
         | hir::ExprKind::AddrOf(..)
         | hir::ExprKind::Cast(..)
         | hir::ExprKind::DropTemps(..)
+        // DOUBLE CHECK IN REVIEW
+        | hir::ExprKind::Let(..)
         | hir::ExprKind::Unary(..)
         | hir::ExprKind::Break(..)
         | hir::ExprKind::Continue(_)
@@ -1001,6 +1003,11 @@ impl<'a, 'tcx> Liveness<'a, 'tcx> {
                 })
             }
 
+            hir::ExprKind::Let(ref pat, ref scrutinee) => {
+                let succ = self.propagate_through_expr(scrutinee, succ);
+                self.define_bindings_in_pat(pat, succ)
+            }
+
             // Note that labels have been resolved, so we don't need to look
             // at the label ident
             hir::ExprKind::Loop(ref blk, _, _) => self.propagate_through_loop(expr, &blk, succ),
@@ -1414,6 +1421,7 @@ fn check_expr<'tcx>(this: &mut Liveness<'_, 'tcx>, expr: &'tcx Expr<'tcx>) {
         | hir::ExprKind::Tup(..)
         | hir::ExprKind::Binary(..)
         | hir::ExprKind::Cast(..)
+        | hir::ExprKind::Let(..)
         | hir::ExprKind::DropTemps(..)
         | hir::ExprKind::Unary(..)
         | hir::ExprKind::Ret(..)

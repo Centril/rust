@@ -1082,6 +1082,10 @@ pub fn walk_expr<'v, V: Visitor<'v>>(visitor: &mut V, expression: &'v Expr<'v>) 
         ExprKind::DropTemps(ref subexpression) => {
             visitor.visit_expr(subexpression);
         }
+        ExprKind::Let(ref pat, ref expr) => {
+            visitor.visit_pat(pat);
+            visitor.visit_expr(expr);
+        }
         ExprKind::Loop(ref block, ref opt_label, _) => {
             walk_list!(visitor, visit_label, opt_label);
             visitor.visit_block(block);
