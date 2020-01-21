@@ -232,12 +232,10 @@ impl<'a, 'tcx> ExprUseVisitor<'a, 'tcx> {
                 self.walk_local(scrutinee, pat);
             }
 
-            hir::ExprKind::If(ref cond, ref then, ref opt_else) => {
+            hir::ExprKind::If(ref cond, ref then, ref elze, _) => {
                 self.consume_expr(&cond);
                 self.walk_expr(&then);
-                if let Some(ref els) = *opt_else {
-                    self.consume_expr(els);
-                }
+                self.consume_expr(elze);
             }
 
             hir::ExprKind::Match(ref scrutinee, arms, _) => {

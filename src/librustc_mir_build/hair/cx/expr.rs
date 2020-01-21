@@ -473,7 +473,7 @@ fn make_mirror_unadjusted<'a, 'tcx>(
             let then_arm = arm(pat, true);
             ExprKind::Match { scrutinee: scrutinee.to_ref(), arms: vec![then_arm, else_arm] }
         }
-        hir::ExprKind::If(ref cond, ref then, ref opt_else) => {
+        hir::ExprKind::If(ref cond, ref then, ref elze, _) => {
             let types = &cx.tcx.types;
             let span = expr.span;
             let (pattern, scrutinee) = match &cond.kind {
@@ -489,14 +489,7 @@ fn make_mirror_unadjusted<'a, 'tcx>(
                 Arm { span, guard: None, pattern, body, lint_level, scope }
             };
             let then_arm = arm(pattern, then.to_ref(), then.hir_id);
-            let else_body = match opt_else {
-                Some(expr) => expr.to_ref(),
-                None => {
-                    let kind = ExprKind::Tuple { fields: Vec::new() };
-                    Expr { temp_lifetime, ty: types.unit, span, kind }.to_ref()
-                }
-            };
-            let else_arm = arm(Pat::wildcard_from_ty(types.bool), else_body, expr.hir_id);
+            let else_arm = arm(Pat::wildcard_from_ty(types.bool), elze.to_ref(), elze.hir_id);
             ExprKind::Match { scrutinee: scrutinee.to_ref(), arms: vec![then_arm, else_arm] }
         }
         hir::ExprKind::Match(ref scrutinee, ref arms, _) => ExprKind::Match {

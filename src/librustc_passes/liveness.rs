@@ -1012,7 +1012,7 @@ impl<'a, 'tcx> Liveness<'a, 'tcx> {
             // at the label ident
             hir::ExprKind::Loop(ref blk, _, _) => self.propagate_through_loop(expr, &blk, succ),
 
-            hir::ExprKind::If(ref cond, ref then, ref opt_else) => {
+            hir::ExprKind::If(ref cond, ref then, ref elze, _) => {
                 //
                 //     (cond)
                 //       |
@@ -1026,8 +1026,8 @@ impl<'a, 'tcx> Liveness<'a, 'tcx> {
                 //    v      v
                 //   (  succ  )
                 //
-                let else_ln = self.propagate_through_opt_expr(opt_else.as_deref(), succ);
-                let then_ln = self.propagate_through_expr(&then, succ);
+                let else_ln = self.propagate_through_expr(elze, succ);
+                let then_ln = self.propagate_through_expr(then, succ);
                 let ln = self.live_node(expr.hir_id, expr.span);
                 self.init_from_succ(ln, else_ln);
                 self.merge_from_succ(ln, then_ln, false);

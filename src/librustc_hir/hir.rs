@@ -1575,7 +1575,7 @@ pub enum ExprKind<'hir> {
     /// An `if` block, with an optional else block.
     ///
     /// I.e., `if <expr> { <expr> } else { <expr> }`.
-    If(&'hir Expr<'hir>, &'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
+    If(&'hir Expr<'hir>, &'hir Expr<'hir>, &'hir Expr<'hir>, bool),
     /// A conditionless loop (can be exited with `break`, `continue`, or `return`).
     ///
     /// I.e., `'label: loop { <block> }`.

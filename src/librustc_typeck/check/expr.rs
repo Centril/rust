@@ -254,8 +254,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             ExprKind::Loop(ref body, _, source) => {
                 self.check_expr_loop(body, source, expected, expr)
             }
-            ExprKind::If(ref cond, ref then, ref opt_else) => {
-                self.check_expr_if(expr, cond, then, opt_else.as_deref(), expected)
+            ExprKind::If(ref cond, ref then, ref elze, has_else) => {
+                self.check_expr_if(expr, cond, then, elze, has_else, expected)
             }
             ExprKind::Match(ref scrutinee, ref arms, match_src) => {
                 self.check_match(expr, &scrutinee, arms, expected, match_src)

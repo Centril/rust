@@ -1,4 +1,4 @@
-use crate::check::coercion::CoerceMany;
+use crate::check::coercion::{AsCoercionSite, CoerceMany};
 use crate::check::{Diverges, Expectation, FnCtxt, Needs};
 use rustc::infer::type_variable::{TypeVariableOrigin, TypeVariableOriginKind};
 use rustc::traits::ObligationCauseCode;
@@ -87,21 +87,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let mut all_arms_diverge = Diverges::WarnedAlways;
 
         let expected = expected.adjust_for_branches(self);
-        let mut coercion = {
-            let coerce_first = match expected {
-                // We don't coerce to `()` so that if the match expression is a
-                // statement it's branches can have any consistent type. That allows
-                // us to give better error messages (pointing to a usually better
-                // arm for inconsistent arms or to the whole match when a `()` type
-                // is required).
-                Expectation::ExpectHasType(ety) if ety != self.tcx.mk_unit() => ety,
-                _ => self.next_ty_var(TypeVariableOrigin {
-                    kind: TypeVariableOriginKind::MiscVariable,
-                    span: expr.span,
-                }),
-            };
-            CoerceMany::with_coercion_sites(coerce_first, arms)
-        };
+        let mut coercion = self.arm_coercion_sites(expected, arms, expr.span);
 
         let mut other_arms = vec![]; // used only for diagnostics
         let mut prior_arm_ty = None;
@@ -215,7 +201,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         expr: &'tcx hir::Expr<'tcx>,
         cond: &'tcx hir::Expr<'tcx>,
         then: &'tcx hir::Expr<'tcx>,
-        opt_else: Option<&'tcx hir::Expr<'tcx>>,
+        elze: &'tcx hir::Expr<'tcx>,
+        has_else: bool,
         expected: Expectation<'tcx>,
     ) -> Ty<'tcx> {
         // 1. Type check the condition.
@@ -223,51 +210,37 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // 2. Lint for unreachability of each block if the condition diverges.
         self.warn_if_unreachable(then.hir_id, then.span, "block");
-        if let Some(els) = opt_else {
-            self.warn_if_unreachable(els.hir_id, els.span, "block");
-        }
+        self.warn_if_unreachable(elze.hir_id, elze.span, "block");
+
+        // 3. Store divergence of condition.
         let cond_diverges = self.diverges.get();
         self.diverges.set(Diverges::Maybe);
 
-        // 3. Type check the blocks.
+        // 4. Type check the blocks.
+        let exprs = &[then, elze];
         let expected = expected.adjust_for_branches(self);
-        let coerce_first = match expected {
-            // We don't coerce to `()` so that if the `if` expression is a
-            // statement it's branches can have any consistent type. That allows
-            // us to give better error messages (pointing to a usually better
-            // block for inconsistent blocks or to the whole `if` when a `()` type
-            // is required).
-            Expectation::ExpectHasType(ety) if ety != self.tcx.mk_unit() => ety,
-            _ => self.next_ty_var(TypeVariableOrigin {
-                kind: TypeVariableOriginKind::MiscVariable,
-                span: expr.span,
-            }),
-        };
-        let mut coercion = CoerceMany::new(coerce_first);
+        let mut coercion = self.arm_coercion_sites(expected, exprs, expr.span);
 
-        // 4. Type check `then`.
+        // 5. Type check `then`.
         let then_ty = self.check_expr_with_expectation(then, expected);
         let then_diverges = self.diverges.get();
         self.diverges.set(Diverges::Maybe);
         coercion.coerce(self, &self.misc(expr.span), then, then_ty);
 
-        // 5. Type check `else`.
-        let else_diverges = if let Some(els) = opt_else {
-            let else_ty = self.check_expr_with_expectation(els, expected);
-            let else_diverges = self.diverges.get();
-            let cause = self.if_cause(expr.span, then, &els, then_ty, else_ty);
-            coercion.coerce(self, &cause, &els, else_ty);
-            else_diverges
+        // 6. Type check `else`.
+        let else_ty = self.check_expr_with_expectation(elze, expected);
+        let else_diverges = self.diverges.get();
+        if has_else {
+            let cause = self.if_cause(expr.span, then, &elze, then_ty, else_ty);
+            coercion.coerce(self, &cause, &elze, else_ty);
         } else {
             self.if_fallback_coercion(expr.span, then, &mut coercion);
-            // If the condition is false we cannot diverge.
-            Diverges::Maybe
         };
 
-        // 6. We won't diverge unless both branches do (or the condition does).
+        // 7. We won't diverge unless both branches do (or the condition does).
         self.diverges.set(cond_diverges | then_diverges & else_diverges);
 
-        // 7. Complete the coercion.
+        // 8. Complete the coercion.
         coercion.complete(self)
     }
 
@@ -278,7 +251,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         &self,
         span: Span,
         then_expr: &'tcx hir::Expr<'tcx>,
-        coercion: &mut CoerceMany<'tcx, '_, rustc_hir::Arm<'tcx>>,
+        coercion: &mut CoerceMany<'tcx, '_, impl AsCoercionSite>,
     ) -> bool {
         // If this `if` expr is the parent's function return expr,
         // the cause of the type coercion is the return type, point at it. (#25228)
@@ -523,5 +496,26 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             self.check_expr_has_type_or_error(scrut, scrut_ty, |_| {});
             scrut_ty
         }
+    }
+
+    fn arm_coercion_sites<'arms, T: AsCoercionSite>(
+        &self,
+        expected: Expectation<'tcx>,
+        arms: &'arms [T],
+        span: Span,
+    ) -> CoerceMany<'tcx, 'arms, T> {
+        let coerce_first = match expected {
+            // We don't coerce to `()` so that if the match expression is a
+            // statement it's branches can have any consistent type. That allows
+            // us to give better error messages (pointing to a usually better
+            // arm for inconsistent arms or to the whole match when a `()` type
+            // is required).
+            Expectation::ExpectHasType(ety) if ety != self.tcx.mk_unit() => ety,
+            _ => self.next_ty_var(TypeVariableOrigin {
+                span,
+                kind: TypeVariableOriginKind::MiscVariable,
+            }),
+        };
+        CoerceMany::with_coercion_sites(coerce_first, arms)
     }
 }

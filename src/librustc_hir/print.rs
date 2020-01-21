@@ -1052,47 +1052,41 @@ impl<'a> State<'a> {
         )
     }
 
-    fn print_else(&mut self, els: Option<&hir::Expr<'_>>) {
-        if let Some(_else) = els {
-            match _else.kind {
-                // Another `else if` block.
-                hir::ExprKind::If(ref i, ref then, ref e) => {
-                    self.cbox(INDENT_UNIT - 1);
-                    self.ibox(0);
-                    self.s.word(" else if ");
-                    self.print_expr_as_cond(i);
-                    self.s.space();
-                    self.print_expr(then);
-                    self.print_else(e.as_deref())
+    fn print_else(&mut self, elze: &hir::Expr<'_>) {
+        match elze.kind {
+            // Another `else if` block.
+            hir::ExprKind::If(ref i, ref then, ref elze, has_else) => {
+                self.cbox(INDENT_UNIT - 1);
+                self.ibox(0);
+                self.s.word(" else if ");
+                self.print_expr_as_cond(i);
+                self.s.space();
+                self.print_expr(then);
+                if has_else {
+                    self.print_else(elze);
                 }
-                // Final `else` block.
-                hir::ExprKind::Block(ref b, _) => {
-                    self.cbox(INDENT_UNIT - 1);
-                    self.ibox(0);
-                    self.s.word(" else ");
-                    self.print_block(b)
-                }
-                // Constraints would be great here!
-                _ => {
-                    panic!("print_if saw if with weird alternative");
-                }
+            }
+            // Final `else` block.
+            hir::ExprKind::Block(ref b, _) => {
+                self.cbox(INDENT_UNIT - 1);
+                self.ibox(0);
+                self.s.word(" else ");
+                self.print_block(b)
+            }
+            // Constraints would be great here!
+            _ => {
+                panic!("print_if saw if with weird alternative");
             }
         }
     }
 
-    fn print_if(
-        &mut self,
-        cond: &hir::Expr<'_>,
-        then: &hir::Expr<'_>,
-        opt_else: Option<&hir::Expr<'_>>,
-    ) {
+    fn print_if(&mut self, cond: &hir::Expr<'_>, then: &hir::Expr<'_>) {
         self.head("if");
 
         self.print_expr_as_cond(cond);
         self.s.space();
 
         self.print_expr(then);
-        self.print_else(opt_else)
     }
 
     /// Prints an expr using syntax that's acceptable in a condition position, such as the `cond` in
@@ -1359,8 +1353,11 @@ impl<'a> State<'a> {
                 self.s.space();
                 self.print_block(&blk);
             }
-            hir::ExprKind::If(ref cond, ref then, ref opt_else) => {
-                self.print_if(cond, then, opt_else.as_deref());
+            hir::ExprKind::If(ref cond, ref then, ref elze, has_else) => {
+                self.print_if(cond, then);
+                if has_else {
+                    self.print_else(elze);
+                }
             }
             hir::ExprKind::Match(ref expr, arms, _) => {
                 self.cbox(INDENT_UNIT);
