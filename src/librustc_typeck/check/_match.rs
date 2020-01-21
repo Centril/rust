@@ -59,15 +59,15 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let all_arm_pats_diverge: Vec<_> = arms
             .iter()
             .map(|arm| {
-                let mut all_pats_diverge = Diverges::WarnedAlways;
+                let mut pat_diverges = Diverges::WarnedAlways;
                 self.diverges.set(Diverges::Maybe);
                 self.check_pat_top(&arm.pat, scrut_ty, Some(scrut.span), true);
-                all_pats_diverge &= self.diverges.get();
+                pat_diverges &= self.diverges.get();
 
                 // As discussed with @eddyb, this is for disabling unreachable_code
                 // warnings on patterns (they're now subsumed by unreachable_patterns
                 // warnings).
-                match all_pats_diverge {
+                match pat_diverges {
                     Diverges::Maybe => Diverges::Maybe,
                     Diverges::Always { .. } | Diverges::WarnedAlways => Diverges::WarnedAlways,
                 }
@@ -207,9 +207,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // 1. Type check the condition.
         self.check_expr_has_type_or_error(cond, self.tcx.types.bool, |_| {});
 
+        /*
         // 2. Lint for unreachability of each block if the condition diverges.
         self.warn_if_unreachable(then.hir_id, then.span, "block");
         self.warn_if_unreachable(elze.hir_id, elze.span, "block");
+        */
 
         // 3. Store divergence of condition.
         let cond_diverges = self.diverges.replace(Diverges::Maybe);
@@ -219,12 +221,14 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let expected = expected.adjust_for_branches(self);
         let mut coercion = self.arm_coercion_sites(expected, exprs, expr.span);
 
-        // 5. Type check `then`.
+        // 4.1. Type check `then`.
+        self.diverges.set(Diverges::Maybe);
         let then_ty = self.check_expr_with_expectation(then, expected);
         let then_diverges = self.diverges.replace(Diverges::Maybe);
         coercion.coerce(self, &self.misc(expr.span), then, then_ty);
 
-        // 6. Type check `else`.
+        // 4.2. Type check `else`.
+        self.diverges.set(Diverges::Maybe);
         let else_ty = self.check_expr_with_expectation(elze, expected);
         let else_diverges = self.diverges.get();
         if has_else {
@@ -234,10 +238,10 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             self.if_fallback_coercion(expr.span, then, &mut coercion);
         };
 
-        // 7. We won't diverge unless both branches do (or the condition does).
-        self.diverges.set(cond_diverges | then_diverges & else_diverges);
+        // 4.3. We won't diverge unless both branches do (or the condition does).
+        self.diverges.set(cond_diverges | (then_diverges & else_diverges));
 
-        // 8. Complete the coercion.
+        // 4.4. Complete the coercion.
         coercion.complete(self)
     }
 

@@ -243,25 +243,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
         }
     }
 
-    fn lower_expr_let(&mut self, span: Span, pat: &Pat, scrutinee: &Expr) -> hir::ExprKind<'hir> {
-        // If we got here, the `let` expression is not allowed.
-
-        if self.sess.opts.unstable_features.is_nightly_build() {
-            self.sess
-                .struct_span_err(span, "`let` expressions are not supported here")
-                .note("only supported directly in conditions of `if`- and `while`-expressions")
-                .note("as well as when nested within `&&` and parenthesis in those conditions")
-                .emit();
-        } else {
-            self.sess
-                .struct_span_err(span, "expected expression, found statement (`let`)")
-                .note("variable declaration using `let` is a statement")
-                .emit();
-        }
-
+    fn lower_expr_let(&mut self, _: Span, pat: &Pat, scrutinee: &Expr) -> hir::ExprKind<'hir> {
         hir::ExprKind::Let(self.lower_pat(pat), self.lower_expr(scrutinee))
     }
 
+    /// Lower `if $cond_expr $then_block (else $else_block)?`.
     fn lower_expr_if(
         &mut self,
         span: Span,
@@ -269,42 +255,28 @@ impl<'hir> LoweringContext<'_, 'hir> {
         then: &Block,
         else_opt: Option<&Expr>,
     ) -> hir::ExprKind<'hir> {
-        // FIXME(#53667): handle lowering of && and parens.
-
-        // `_ => else_block` where `else_block` is `{}` if there's `None`:
-        let else_pat = self.pat_wild(span);
-        let (else_expr, contains_else_clause) = match else_opt {
-            None => (self.expr_block_empty(span), false),
-            Some(els) => (self.lower_expr(els), true),
-        };
-        let else_arm = self.arm(else_pat, else_expr);
-
-        // Handle then + scrutinee:
-        let then_expr = self.lower_block_expr(then);
-        let (then_pat, scrutinee, desugar) = match cond.kind {
-            // `<pat> => <then>`:
-            ExprKind::Let(ref pat, ref scrutinee) => {
-                let scrutinee = self.lower_expr(scrutinee);
-                let pat = self.lower_pat(pat);
-                (pat, scrutinee, hir::MatchSource::IfLetDesugar { contains_else_clause })
-            }
-            // `true => <then>`:
+        // Lower the `cond` expression.
+        let cond = self.lower_expr(cond);
+        // Normally, the `cond` of `if cond` will drop temporaries before evaluating the blocks.
+        // This is achieved by using `drop-temps { cond }`, equivalent to `{ let _t = $cond; _t }`.
+        // However, for backwards compatibility reasons, `if let pat = scrutinee`, like `match`
+        // does not drop the temporaries of `scrutinee` before evaluating the blocks.
+        let cond = match &cond.kind {
+            hir::ExprKind::Let(..) => cond,
             _ => {
-                // Lower condition:
-                let cond = self.lower_expr(cond);
-                let span_block =
-                    self.mark_span_with_reason(DesugaringKind::CondTemporary, cond.span, None);
-                // Wrap in a construct equivalent to `{ let _t = $cond; _t }`
-                // to preserve drop semantics since `if cond { ... }` does not
-                // let temporaries live outside of `cond`.
-                let cond = self.expr_drop_temps(span_block, cond, ThinVec::new());
-                let pat = self.pat_bool(span, true);
-                (pat, cond, hir::MatchSource::IfDesugar { contains_else_clause })
+                let span = cond.span;
+                //let span = self.mark_span_with_reason(DesugaringKind::CondTemporary, span, None);
+                self.expr_drop_temps(span, cond, ThinVec::new())
             }
         };
-        let then_arm = self.arm(then_pat, self.arena.alloc(then_expr));
-
-        hir::ExprKind::Match(scrutinee, arena_vec![self; then_arm, else_arm], desugar)
+        // Lower the `then` block.
+        let then = self.arena.alloc(self.lower_block_expr(then));
+        let (elze, has_else) = match else_opt {
+            // No `else` block, so we'll use `{}`.
+            None => (self.expr_block_empty(span), false),
+            Some(elze) => (self.lower_expr(elze), true),
+        };
+        hir::ExprKind::If(cond, then, elze, has_else)
     }
 
     fn lower_expr_while_in_loop_scope(

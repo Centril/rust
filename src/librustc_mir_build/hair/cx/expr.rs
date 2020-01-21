@@ -444,10 +444,23 @@ fn make_mirror_unadjusted<'a, 'tcx>(
             Err(err) => bug!("invalid loop id for continue: {}", err),
         },
         hir::ExprKind::Let(ref pat, ref scrutinee) => {
+            // If we got here, the `let` expression is not allowed.
+            // FIXME(let_chains, Centril): Once we have `Let` in HAIR and the MIR lowering is fixed,
+            // we should either move this logic to AST validation or to feature gating.
+            let span = expr.span;
+            let sess = cx.tcx.sess;
+            if sess.opts.unstable_features.is_nightly_build() {
+                sess.struct_span_err(span, "`let` expressions are not supported here")
+                    .note("only supported directly in conditions of `if`- and `while`-expressions")
+                    .note("as well as when nested within `&&` and parenthesis in those conditions")
+                    .emit();
+            } else {
+                sess.struct_span_err(span, "expected expression, found statement (`let`)")
+                    .note("variable declaration using `let` is a statement")
+                    .emit();
+            }
+
             // FIXME(let_chains, Centril): Temporary solution while we cannot lower these to MIR.
-            //
-            // If we got here, the `let` expression is not allowed
-            // and we have emitted an error in HIR lowering.
             //
             // For better recovery, we emit:
             // ```
@@ -458,7 +471,6 @@ fn make_mirror_unadjusted<'a, 'tcx>(
             // 2. We can typeck both `pat` and `scrutinee`.
             // 3. `pat` is allowed to be refutable.
             // 4. The return type of the block is `bool` which seems like what the user wanted.
-            let span = expr.span;
             let pat = cx.pattern_from_hir(pat);
             let arm = |pattern, val| {
                 let literal = Const::from_bool(cx.tcx, val);
