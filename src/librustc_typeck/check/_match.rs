@@ -87,7 +87,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let mut all_arms_diverge = Diverges::WarnedAlways;
 
         let expected = expected.adjust_for_branches(self);
-
         let mut coercion = {
             let coerce_first = match expected {
                 // We don't coerce to `()` so that if the match expression is a
@@ -200,17 +199,76 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         arms: &'tcx [hir::Arm<'tcx>],
         source: hir::MatchSource,
     ) {
-        if self.diverges.get().is_always() {
-            use hir::MatchSource::*;
-            let msg = match source {
-                IfDesugar { .. } | IfLetDesugar { .. } => "block in `if` expression",
-                WhileDesugar { .. } | WhileLetDesugar { .. } => "block in `while` expression",
-                _ => "arm",
-            };
-            for arm in arms {
-                self.warn_if_unreachable(arm.body.hir_id, arm.body.span, msg);
-            }
+        use hir::MatchSource::*;
+        let msg = match source {
+            IfDesugar { .. } | IfLetDesugar { .. } => "block in `if` expression",
+            WhileDesugar { .. } | WhileLetDesugar { .. } => "block in `while` expression",
+            _ => "arm",
+        };
+        for arm in arms {
+            self.warn_if_unreachable(arm.body.hir_id, arm.body.span, msg);
         }
+    }
+
+    pub(super) fn check_expr_if(
+        &self,
+        expr: &'tcx hir::Expr<'tcx>,
+        cond: &'tcx hir::Expr<'tcx>,
+        then: &'tcx hir::Expr<'tcx>,
+        opt_else: Option<&'tcx hir::Expr<'tcx>>,
+        expected: Expectation<'tcx>,
+    ) -> Ty<'tcx> {
+        // 1. Type check the condition.
+        self.check_expr_has_type_or_error(cond, self.tcx.types.bool, |_| {});
+
+        // 2. Lint for unreachability of each block if the condition diverges.
+        self.warn_if_unreachable(then.hir_id, then.span, "block");
+        if let Some(els) = opt_else {
+            self.warn_if_unreachable(els.hir_id, els.span, "block");
+        }
+        let cond_diverges = self.diverges.get();
+        self.diverges.set(Diverges::Maybe);
+
+        // 3. Type check the blocks.
+        let expected = expected.adjust_for_branches(self);
+        let coerce_first = match expected {
+            // We don't coerce to `()` so that if the `if` expression is a
+            // statement it's branches can have any consistent type. That allows
+            // us to give better error messages (pointing to a usually better
+            // block for inconsistent blocks or to the whole `if` when a `()` type
+            // is required).
+            Expectation::ExpectHasType(ety) if ety != self.tcx.mk_unit() => ety,
+            _ => self.next_ty_var(TypeVariableOrigin {
+                kind: TypeVariableOriginKind::MiscVariable,
+                span: expr.span,
+            }),
+        };
+        let mut coercion = CoerceMany::new(coerce_first);
+
+        // 4. Type check `then`.
+        let then_ty = self.check_expr_with_expectation(then, expected);
+        let then_diverges = self.diverges.get();
+        self.diverges.set(Diverges::Maybe);
+        coercion.coerce(self, &self.misc(expr.span), then, then_ty);
+
+        // 5. Type check `else`.
+        let else_diverges = if let Some(els) = opt_else {
+            let else_ty = self.check_expr_with_expectation(els, expected);
+            let else_diverges = self.diverges.get();
+            let cause = self.if_cause(expr.span, then, &els, then_ty, else_ty);
+            coercion.coerce(self, &cause, &els, else_ty);
+            else_diverges
+        } else {
+            self.if_fallback_coercion(expr.span, then, &mut coercion);
+            // If the condition is false we cannot diverge.
+            Diverges::Maybe
+        };
+
+        // 6. We won't diverge unless both branches do (or the condition does).
+        self.diverges.set(cond_diverges | then_diverges & else_diverges);
+
+        // 7. Complete the coercion.
+        coercion.complete(self)
     }
 
     /// Handle the fallback arm of a desugared if(-let) like a missing else.

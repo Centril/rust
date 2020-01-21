@@ -1350,6 +1350,7 @@ impl Expr<'_> {
             ExprKind::DropTemps(ref expr, ..) => expr.precedence(),
             ExprKind::Let(..) => ExprPrecedence::Let,
             ExprKind::Loop(..) => ExprPrecedence::Loop,
+            ExprKind::If(..) => ExprPrecedence::If,
             ExprKind::Match(..) => ExprPrecedence::Match,
             ExprKind::Closure(..) => ExprPrecedence::Closure,
             ExprKind::Block(..) => ExprPrecedence::Block,
@@ -1407,6 +1408,7 @@ impl Expr<'_> {
             | ExprKind::MethodCall(..)
             | ExprKind::Struct(..)
             | ExprKind::Tup(..)
+            | ExprKind::If(..)
             | ExprKind::Match(..)
             | ExprKind::Closure(..)
             | ExprKind::Block(..)
@@ -1570,6 +1572,10 @@ pub enum ExprKind<'hir> {
     /// These are not `Local` which only occur as statements.
     /// The `let Some(x) = foo()` in `if let Some(x) = foo()` is an example of `Let(..)`.
     Let(&'hir Pat<'hir>, &'hir Expr<'hir>),
+    /// An `if` block, with an optional else block.
+    ///
+    /// I.e., `if <expr> { <expr> } else { <expr> }`.
+    If(&'hir Expr<'hir>, &'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
     /// A conditionless loop (can be exited with `break`, `continue`, or `return`).
     ///
     /// I.e., `'label: loop { <block> }`.

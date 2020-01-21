@@ -1090,6 +1090,11 @@ pub fn walk_expr<'v, V: Visitor<'v>>(visitor: &mut V, expression: &'v Expr<'v>) 
             walk_list!(visitor, visit_label, opt_label);
             visitor.visit_block(block);
         }
+        ExprKind::If(ref cond, ref then, ref opt_else) => {
+            visitor.visit_expr(cond);
+            visitor.visit_expr(then);
+            walk_list!(visitor, visit_expr, opt_else);
+        }
         ExprKind::Match(ref subexpression, arms, _) => {
             visitor.visit_expr(subexpression);
             walk_list!(visitor, visit_arm, arms);

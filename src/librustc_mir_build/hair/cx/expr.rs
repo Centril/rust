@@ -467,10 +467,36 @@ fn make_mirror_unadjusted<'a, 'tcx>(
                 let scope =
                     region::Scope { id: expr.hir_id.local_id, data: region::ScopeData::Node };
                 let lint_level = LintLevel::Inherited;
-                Arm { pattern, guard: None, body, lint_level, scope, span: span }
+                Arm { pattern, guard: None, body, lint_level, scope, span }
             };
             let else_arm = arm(Pat::wildcard_from_ty(pat.ty), false);
             let then_arm = arm(pat, true);
+            ExprKind::Match { scrutinee: scrutinee.to_ref(), arms: vec![then_arm, else_arm] }
+        }
+        hir::ExprKind::If(ref cond, ref then, ref opt_else) => {
+            let types = &cx.tcx.types;
+            let span = expr.span;
+            let (pattern, scrutinee) = match &cond.kind {
+                hir::ExprKind::Let(pat, scrutinee) => (cx.pattern_from_hir(pat), scrutinee),
+                _ => {
+                    let kind = PatKind::Constant { value: Const::from_bool(cx.tcx, true) };
+                    (Pat { span, ty: types.bool, kind: Box::new(kind) }, cond)
+                }
+            };
+            let arm = |pattern, body, hir_id: hir::HirId| {
+                let scope = region::Scope { id: hir_id.local_id, data: region::ScopeData::Node };
+                let lint_level = LintLevel::Explicit(hir_id);
+                Arm { span, guard: None, pattern, body, lint_level, scope }
+            };
+            let then_arm = arm(pattern, then.to_ref(), then.hir_id);
+            let else_body = match opt_else {
+                Some(expr) => expr.to_ref(),
+                None => {
+                    let kind = ExprKind::Tuple { fields: Vec::new() };
+                    Expr { temp_lifetime, ty: types.unit, span, kind }.to_ref()
+                }
+            };
+            let else_arm = arm(Pat::wildcard_from_ty(types.bool), else_body, expr.hir_id);
             ExprKind::Match { scrutinee: scrutinee.to_ref(), arms: vec![then_arm, else_arm] }
         }
         hir::ExprKind::Match(ref scrutinee, ref arms, _) => ExprKind::Match {

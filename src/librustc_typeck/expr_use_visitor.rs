@@ -232,6 +232,14 @@ impl<'a, 'tcx> ExprUseVisitor<'a, 'tcx> {
                 self.walk_local(scrutinee, pat);
             }
 
+            hir::ExprKind::If(ref cond, ref then, ref opt_else) => {
+                self.consume_expr(&cond);
+                self.walk_expr(&then);
+                if let Some(ref els) = *opt_else {
+                    self.consume_expr(els);
+                }
+            }
+
             hir::ExprKind::Match(ref scrutinee, arms, _) => {
                 let scrut_place = return_if_err!(self.mc.cat_expr(&scrutinee));
                 self.borrow_expr(&scrutinee, ty::ImmBorrow);
