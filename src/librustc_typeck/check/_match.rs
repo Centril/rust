@@ -52,8 +52,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // Otherwise, we have to union together the types that the
         // arms produce and so forth.
-        let scrut_diverges = self.diverges.get();
-        self.diverges.set(Diverges::Maybe);
+        let scrut_diverges = self.diverges.replace(Diverges::Maybe);
 
         // rust-lang/rust#55810: Typecheck patterns first (via eager
         // collection into `Vec`), so we get types for all bindings.
@@ -213,8 +212,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         self.warn_if_unreachable(elze.hir_id, elze.span, "block");
 
         // 3. Store divergence of condition.
-        let cond_diverges = self.diverges.get();
-        self.diverges.set(Diverges::Maybe);
+        let cond_diverges = self.diverges.replace(Diverges::Maybe);
 
         // 4. Type check the blocks.
         let exprs = &[then, elze];
@@ -223,16 +221,15 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         // 5. Type check `then`.
         let then_ty = self.check_expr_with_expectation(then, expected);
-        let then_diverges = self.diverges.get();
-        self.diverges.set(Diverges::Maybe);
+        let then_diverges = self.diverges.replace(Diverges::Maybe);
         coercion.coerce(self, &self.misc(expr.span), then, then_ty);
 
         // 6. Type check `else`.
         let else_ty = self.check_expr_with_expectation(elze, expected);
         let else_diverges = self.diverges.get();
         if has_else {
-            let cause = self.if_cause(expr.span, then, &elze, then_ty, else_ty);
-            coercion.coerce(self, &cause, &elze, else_ty);
+            let cause = self.if_cause(expr.span, then, elze, then_ty, else_ty);
+            coercion.coerce(self, &cause, elze, else_ty);
         } else {
             self.if_fallback_coercion(expr.span, then, &mut coercion);
         };
