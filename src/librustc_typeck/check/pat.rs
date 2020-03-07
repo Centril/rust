@@ -57,6 +57,13 @@ struct Info<'stack, 'tcx> {
     trace: &'stack List<'stack, &'tcx Pat<'tcx>>,
 }
 
+impl Info<'_, '_> {
+    /// Span of the currently type checked pattern.
+    fn span(&self) -> Span {
+        self.trace.head.span
+    }
+}
+
 #[derive(Copy, Clone)]
 struct List<'a, T> {
     head: T,
@@ -157,8 +164,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
         let ty = match pat.kind {
             PatKind::Wild => expected,
-            PatKind::Lit(lt) => self.check_pat_lit(pat.span, lt, expected, ti),
-            PatKind::Range(lhs, rhs, _) => self.check_pat_range(pat.span, lhs, rhs, expected, ti),
+            PatKind::Lit(lt) => self.check_pat_lit(lt, expected, ti),
+            PatKind::Range(lhs, rhs, _) => self.check_pat_range(lhs, rhs, expected, ti),
             PatKind::Binding(ba, var_id, _, sub) => {
                 self.check_pat_ident(pat, ba, var_id, sub, expected, def_bm, ti)
             }
@@ -177,15 +184,11 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 }
                 expected
             }
-            PatKind::Tuple(elements, ddpos) => {
-                self.check_pat_tuple(pat, elements, ddpos, expected, def_bm, ti)
-            }
-            PatKind::Box(inner) => self.check_pat_box(pat, inner, expected, def_bm, ti),
-            PatKind::Ref(inner, mutbl) => {
-                self.check_pat_ref(pat, inner, mutbl, expected, def_bm, ti)
-            }
+            PatKind::Tuple(pats, ddpos) => self.check_pat_tuple(pats, ddpos, expected, def_bm, ti),
+            PatKind::Box(inner) => self.check_pat_box(inner, expected, def_bm, ti),
+            PatKind::Ref(inner, mutbl) => self.check_pat_ref(inner, mutbl, expected, def_bm, ti),
             PatKind::Slice(before, slice, after) => {
-                self.check_pat_slice(pat, before, slice, after, expected, def_bm, ti)
+                self.check_pat_slice(before, slice, after, expected, def_bm, ti)
             }
         };
 
@@ -363,7 +366,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn check_pat_lit(
         &self,
-        span: Span,
         lt: &hir::Expr<'tcx>,
         expected: Ty<'tcx>,
         ti: Info<'_, 'tcx>,
@@ -376,7 +378,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // They can denote both statically and dynamically-sized byte arrays.
         let mut pat_ty = ty;
         if let hir::ExprKind::Lit(Spanned { node: ast::LitKind::ByteStr(_), .. }) = lt.kind {
-            let expected = self.structurally_resolved_type(span, expected);
+            let expected = self.structurally_resolved_type(ti.span(), expected);
             if let ty::Ref(_, ty::TyS { kind: ty::Slice(_), .. }, _) = expected.kind {
                 let tcx = self.tcx;
                 pat_ty = tcx.mk_imm_ref(tcx.lifetimes.re_static, tcx.mk_slice(tcx.types.u8));
@@ -393,7 +395,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         //     &'static str <: expected
         //
         // then that's equivalent to there existing a LUB.
-        let cause = self.pattern_cause(ti, span);
+        let cause = self.pattern_cause(ti, ti.span());
         if let Some(mut err) = self.demand_suptype_with_origin(&cause, expected, pat_ty) {
             err.emit_unless(
                 ti.root_expected
@@ -413,7 +415,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn check_pat_range(
         &self,
-        span: Span,
         lhs: Option<&'tcx hir::Expr<'tcx>>,
         rhs: Option<&'tcx hir::Expr<'tcx>>,
         expected: Ty<'tcx>,
@@ -434,7 +435,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         if let (Some((true, ..)), _) | (_, Some((true, ..))) = (lhs, rhs) {
             // There exists a side that didn't meet our criteria that the end-point
             // be of a numeric or char type, as checked in `calc_side` above.
-            self.emit_err_pat_range(span, lhs, rhs);
+            self.emit_err_pat_range(ti.span(), lhs, rhs);
             return self.tcx.types.err;
         }
 
@@ -554,7 +555,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         // If there are multiple arms, make sure they all agree on
         // what the type of the binding `x` ought to be.
         if var_id != pat.hir_id {
-            self.check_binding_alt_eq_ty(pat.span, var_id, local_ty, ti);
+            self.check_binding_alt_eq_ty(var_id, local_ty, ti);
         }
 
         if let Some(p) = sub {
@@ -564,9 +565,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         local_ty
     }
 
-    fn check_binding_alt_eq_ty(&self, span: Span, var_id: HirId, ty: Ty<'tcx>, ti: Info<'_, 'tcx>) {
-        let var_ty = self.local_ty(span, var_id).decl_ty;
-        if let Some(mut err) = self.demand_eqtype_pat_diag(span, var_ty, ty, ti) {
+    fn check_binding_alt_eq_ty(&self, var_id: HirId, ty: Ty<'tcx>, ti: Info<'_, 'tcx>) {
+        let var_ty = self.local_ty(ti.span(), var_id).decl_ty;
+        if let Some(mut err) = self.demand_eqtype_pat_diag(ti.span(), var_ty, ty, ti) {
             let hir = self.tcx.hir();
             let var_ty = self.resolve_vars_with_obligations(var_ty);
             let msg = format!("first introduced with type `{}` here", var_ty);
@@ -711,7 +712,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         if let Some(err) =
             self.demand_suptype_with_origin(&self.pattern_cause(ti, pat.span), expected, pat_ty)
         {
-            self.emit_bad_pat_path(err, pat.span, res, pat_res, segments, ti);
+            self.emit_bad_pat_path(err, res, pat_res, segments, ti);
         }
         pat_ty
     }
@@ -719,7 +720,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     fn emit_bad_pat_path(
         &self,
         mut e: DiagnosticBuilder<'_>,
-        pat_span: Span,
         res: Res,
         pat_res: Res,
         segments: &'b [hir::PathSegment<'b>],
@@ -729,7 +729,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             e.span_label(span, &format!("{} defined here", res.descr()));
             if let [hir::PathSegment { ident, .. }] = &*segments {
                 e.span_label(
-                    pat_span,
+                    ti.span(),
                     &format!(
                         "`{}` is interpreted as {} {}, not a new binding",
                         ident,
@@ -938,7 +938,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn check_pat_tuple(
         &self,
-        pat: &'tcx Pat<'tcx>,
         elements: &'tcx [&'tcx Pat<'tcx>],
         ddpos: Option<usize>,
         expected: Ty<'tcx>,
@@ -949,7 +948,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let mut expected_len = elements.len();
         if ddpos.is_some() {
             // Require known type only when `..` is present.
-            if let ty::Tuple(ref tys) = self.structurally_resolved_type(pat.span, expected).kind {
+            if let ty::Tuple(ref tys) = self.structurally_resolved_type(ti.span(), expected).kind {
                 expected_len = tys.len();
             }
         }
@@ -959,12 +958,12 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             GenericArg::from(self.next_ty_var(
                 // FIXME: `MiscVariable` for now -- obtaining the span and name information
                 // from all tuple elements isn't trivial.
-                TypeVariableOrigin { kind: TypeVariableOriginKind::TypeInference, span: pat.span },
+                TypeVariableOrigin { kind: TypeVariableOriginKind::TypeInference, span: ti.span() },
             ))
         });
         let element_tys = tcx.mk_substs(element_tys_iter);
         let pat_ty = tcx.mk_ty(ty::Tuple(element_tys));
-        if let Some(mut err) = self.demand_eqtype_pat_diag(pat.span, expected, pat_ty, ti) {
+        if let Some(mut err) = self.demand_eqtype_pat_diag(ti.span(), expected, pat_ty, ti) {
             err.emit();
             // Walk subpatterns with an expected type of `err` in this case to silence
             // further errors being emitted when using the bindings. #50333
@@ -1215,14 +1214,13 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn check_pat_box(
         &self,
-        pat: &'tcx Pat<'tcx>,
         inner: &'tcx Pat<'tcx>,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
         ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let tcx = self.tcx;
-        let (box_ty, inner_ty) = if self.check_dereferenceable(pat.span, expected, &inner) {
+        let (box_ty, inner_ty) = if self.check_dereferenceable(ti.span(), expected, &inner) {
             // Here, `demand::subtype` is good enough, but I don't
             // think any errors can be introduced by using `demand::eqtype`.
             let inner_ty = self.next_ty_var(TypeVariableOrigin {
@@ -1230,7 +1228,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 span: inner.span,
             });
             let box_ty = tcx.mk_box(inner_ty);
-            self.demand_eqtype_pat(pat.span, expected, box_ty, ti);
+            self.demand_eqtype_pat(ti.span(), expected, box_ty, ti);
             (box_ty, inner_ty)
         } else {
             (tcx.types.err, tcx.types.err)
@@ -1241,7 +1239,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
 
     fn check_pat_ref(
         &self,
-        pat: &'tcx Pat<'tcx>,
         inner: &'tcx Pat<'tcx>,
         mutbl: hir::Mutability,
         expected: Ty<'tcx>,
@@ -1250,7 +1247,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     ) -> Ty<'tcx> {
         let tcx = self.tcx;
         let expected = self.shallow_resolve(expected);
-        let (rptr_ty, inner_ty) = if self.check_dereferenceable(pat.span, expected, inner) {
+        let (rptr_ty, inner_ty) = if self.check_dereferenceable(ti.span(), expected, inner) {
             // `demand::subtype` would be good enough, but using `eqtype` turns
             // out to be equally general. See (note_1) for details.
 
@@ -1265,14 +1262,14 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         kind: TypeVariableOriginKind::TypeInference,
                         span: inner.span,
                     });
-                    let rptr_ty = self.new_ref_ty(pat.span, mutbl, inner_ty);
+                    let rptr_ty = self.new_ref_ty(ti.span(), mutbl, inner_ty);
                     debug!("check_pat_ref: demanding {:?} = {:?}", expected, rptr_ty);
-                    let err = self.demand_eqtype_pat_diag(pat.span, expected, rptr_ty, ti);
+                    let err = self.demand_eqtype_pat_diag(ti.span(), expected, rptr_ty, ti);
 
                     // Look for a case like `fn foo(&foo: u32)` and suggest
                     // `fn foo(foo: &u32)`
                     if let Some(mut err) = err {
-                        self.borrow_pat_suggestion(&mut err, pat, inner, expected);
+                        self.borrow_pat_suggestion(&mut err, ti.trace.head, inner, expected);
                         err.emit();
                     }
                     (rptr_ty, inner_ty)
@@ -1304,7 +1301,6 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
     /// If `slice` is present, it can still represent 0 elements.
     fn check_pat_slice(
         &self,
-        pat: &'tcx Pat<'tcx>,
         before: &'tcx [&'tcx Pat<'tcx>],
         slice: Option<&'tcx Pat<'tcx>>,
         after: &'tcx [&'tcx Pat<'tcx>],
@@ -1313,13 +1309,13 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let err = self.tcx.types.err;
-        let expected = self.structurally_resolved_type(pat.span, expected);
+        let expected = self.structurally_resolved_type(ti.span(), expected);
         let (inner_ty, slice_ty, expected) = match expected.kind {
             // An array, so we might have something like `let [a, b, c] = [0, 1, 2];`.
             ty::Array(inner_ty, len) => {
                 let min = before.len() as u64 + after.len() as u64;
                 let slice_ty = self
-                    .check_array_pat_len(pat.span, slice, len, min)
+                    .check_array_pat_len(ti.span(), slice, len, min)
                     .map_or(err, |len| self.tcx.mk_array(inner_ty, len));
                 (inner_ty, slice_ty, expected)
             }
@@ -1327,7 +1323,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
             // The expected type must be an array or slice, but was neither, so error.
             _ => {
                 if !expected.references_error() {
-                    self.error_expected_array_or_slice(pat.span, expected);
+                    self.error_expected_array_or_slice(ti.span(), expected);
                 }
                 (err, err, err)
             }
