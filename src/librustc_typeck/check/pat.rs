@@ -81,6 +81,13 @@ struct TopInfo<'tcx> {
     parent_pat: Option<&'tcx Pat<'tcx>>,
 }
 
+impl<'tcx> TopInfo<'tcx> {
+    /// Set the parent pattern to the given `pat`.
+    fn parent(self, pat: &'tcx Pat<'tcx>) -> Self {
+        Self { parent_pat: Some(pat), ..self }
+    }
+}
+
 impl<'tcx> FnCtxt<'_, 'tcx> {
     fn pattern_cause(&self, ti: TopInfo<'tcx>, cause_span: Span) -> ObligationCause<'tcx> {
         let code = Pattern { span: ti.span, root_ty: ti.expected, origin_expr: ti.origin_expr };
@@ -178,9 +185,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                 self.check_pat_struct(pat, qpath, fields, etc, expected, def_bm, ti)
             }
             PatKind::Or(pats) => {
-                let parent_pat = Some(pat);
                 for pat in pats {
-                    self.check_pat(pat, expected, def_bm, TopInfo { parent_pat, ..ti });
+                    self.check_pat(pat, expected, def_bm, ti.parent(pat));
                 }
                 expected
             }
@@ -744,15 +750,13 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
                         res.descr(),
                     ),
                 );
+                let lc_ident = ident.as_str().to_lowercase();
                 let (msg, sugg) = match parent_pat {
                     Some(Pat { kind: hir::PatKind::Struct(..), .. }) => (
                         "bind the struct field to a different name instead",
-                        format!("{}: other_{}", ident, ident.as_str().to_lowercase()),
+                        format!("{}: other_{}", ident, lc_ident),
                     ),
-                    _ => (
-                        "introduce a new binding instead",
-                        format!("other_{}", ident.as_str().to_lowercase()),
-                    ),
+                    _ => ("introduce a new binding instead", format!("other_{}", lc_ident)),
                 };
                 e.span_suggestion(ident.span, msg, sugg, Applicability::HasPlaceholders);
             }
