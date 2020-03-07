@@ -211,14 +211,7 @@ pub enum ObligationCauseCode<'tcx> {
     MatchExpressionArm(Box<MatchExpressionArmCause<'tcx>>),
 
     /// Type error arising from type checking a pattern against an expected type.
-    Pattern {
-        /// The span of the scrutinee or type expression which caused the `root_ty` type.
-        span: Option<Span>,
-        /// The root expected type induced by a scrutinee or type expression.
-        root_ty: Ty<'tcx>,
-        /// Whether the `Span` came from an expression or a type expression.
-        origin_expr: bool,
-    },
+    Pattern(PatternCause<'tcx>),
 
     /// Constants in patterns must have `Structural` type.
     ConstPatternStructural,
@@ -280,6 +273,40 @@ pub struct AssocTypeBoundData {
 // `ObligationCauseCode` is used a lot. Make sure it doesn't unintentionally get bigger.
 #[cfg(target_arch = "x86_64")]
 static_assert_size!(ObligationCauseCode<'_>, 32);
+
+/// Information about the expected type at the top level of type checking a pattern.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PatternCause<'tcx> {
+    /// The `expected` type at the top level of type checking a pattern.
+    pub root_ty: Ty<'tcx>,
+    /// Was the origin of the `span` from a scrutinee expression?
+    ///
+    /// Otherwise there is no scrutinee and it could be e.g. from the type of a formal parameter.
+    pub origin_expr: bool,
+    /// The span giving rise to the `expected` type, if one could be provided.
+    ///
+    /// If `origin_expr` is `true`, then this is the span of the scrutinee as in:
+    ///
+    /// - `match scrutinee { ... }`
+    /// - `let _ = scrutinee;`
+    ///
+    /// This is used to point to add context in type errors.
+    /// In the following example, `span` corresponds to the `a + b` expression:
+    ///
+    /// ```text
+    /// error[E0308]: mismatched types
+    ///  --> src/main.rs:L:C
+    ///   |
+    /// L |    let temp: usize = match a + b {
+    ///   |                            ----- this expression has type `usize`
+    /// L |         Ok(num) => num,
+    ///   |         ^^^^^^^ expected `usize`, found enum `std::result::Result`
+    ///   |
+    ///   = note: expected type `usize`
+    ///              found type `std::result::Result<_, _>`
+    /// ```
+    pub span: Option<Span>,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MatchExpressionArmCause<'tcx> {

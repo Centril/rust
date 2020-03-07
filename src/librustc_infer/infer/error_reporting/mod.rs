@@ -52,9 +52,8 @@ use super::{InferCtxt, RegionVariableOrigin, SubregionOrigin, TypeTrace, ValuePa
 use crate::infer::opaque_types;
 use crate::infer::{self, SuppressRegionErrors};
 use crate::traits::error_reporting::report_object_safety_error;
-use crate::traits::{
-    IfExpressionCause, MatchExpressionArmCause, ObligationCause, ObligationCauseCode,
-};
+use crate::traits::{IfExpressionCause, MatchExpressionArmCause, PatternCause};
+use crate::traits::{ObligationCause, ObligationCauseCode};
 
 use rustc::hir::map;
 use rustc::middle::region;
@@ -610,7 +609,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
         exp_found: Option<ty::error::ExpectedFound<Ty<'tcx>>>,
     ) {
         match cause.code {
-            ObligationCauseCode::Pattern { origin_expr: true, span: Some(span), root_ty } => {
+            ObligationCauseCode::Pattern(PatternCause {
+                origin_expr: true,
+                span: Some(span),
+                root_ty,
+            }) => {
                 let ty = self.resolve_vars_if_possible(&root_ty);
                 if ty.is_suggestable() {
                     // don't show type `_`
@@ -629,7 +632,11 @@ impl<'a, 'tcx> InferCtxt<'a, 'tcx> {
                     }
                 }
             }
-            ObligationCauseCode::Pattern { origin_expr: false, span: Some(span), .. } => {
+            ObligationCauseCode::Pattern(PatternCause {
+                origin_expr: false,
+                span: Some(span),
+                ..
+            }) => {
                 err.span_label(span, "expected due to this");
             }
             ObligationCauseCode::MatchExpressionArm(box MatchExpressionArmCause {

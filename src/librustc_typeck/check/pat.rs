@@ -11,7 +11,7 @@ use rustc_hir::pat_util::EnumerateAndAdjustIterator;
 use rustc_hir::{HirId, Pat, PatKind};
 use rustc_infer::infer;
 use rustc_infer::infer::type_variable::{TypeVariableOrigin, TypeVariableOriginKind};
-use rustc_infer::traits::{ObligationCause, Pattern};
+use rustc_infer::traits::{ObligationCause, Pattern, PatternCause};
 use rustc_span::hygiene::DesugaringKind;
 use rustc_span::source_map::{Span, Spanned};
 
@@ -29,40 +29,13 @@ pointers. If you encounter this error you should try to avoid dereferencing the 
 You can read more about trait objects in the Trait Objects section of the Reference: \
 https://doc.rust-lang.org/reference/types.html#trait-objects";
 
-/// Information about the expected type at the top level of type checking a pattern.
+/// Information about type checking patterns as we walk down.
 ///
 /// **NOTE:** This is only for use by diagnostics. Do NOT use for type checking logic!
 #[derive(Copy, Clone)]
-struct TopInfo<'stack, 'tcx> {
-    /// The `expected` type at the top level of type checking a pattern.
-    expected: Ty<'tcx>,
-    /// Was the origin of the `span` from a scrutinee expression?
-    ///
-    /// Otherwise there is no scrutinee and it could be e.g. from the type of a formal parameter.
-    origin_expr: bool,
-    /// The span giving rise to the `expected` type, if one could be provided.
-    ///
-    /// If `origin_expr` is `true`, then this is the span of the scrutinee as in:
-    ///
-    /// - `match scrutinee { ... }`
-    /// - `let _ = scrutinee;`
-    ///
-    /// This is used to point to add context in type errors.
-    /// In the following example, `span` corresponds to the `a + b` expression:
-    ///
-    /// ```text
-    /// error[E0308]: mismatched types
-    ///  --> src/main.rs:L:C
-    ///   |
-    /// L |    let temp: usize = match a + b {
-    ///   |                            ----- this expression has type `usize`
-    /// L |         Ok(num) => num,
-    ///   |         ^^^^^^^ expected `usize`, found enum `std::result::Result`
-    ///   |
-    ///   = note: expected type `usize`
-    ///              found type `std::result::Result<_, _>`
-    /// ```
-    span: Option<Span>,
+struct Info<'stack, 'tcx> {
+    /// Information about the expected type at the top level of type checking a pattern.
+    root_expected: PatternCause<'tcx>,
     /// The trace of patterns, with `trace.head` referring to the current pattern,
     /// `trace.tail.head` the parent, and so on, until the root pattern.
     ///
@@ -91,9 +64,8 @@ struct List<'a, T> {
 }
 
 impl<'tcx> FnCtxt<'_, 'tcx> {
-    fn pattern_cause(&self, ti: TopInfo<'_, 'tcx>, cause_span: Span) -> ObligationCause<'tcx> {
-        let code = Pattern { span: ti.span, root_ty: ti.expected, origin_expr: ti.origin_expr };
-        self.cause(cause_span, code)
+    fn pattern_cause(&self, ti: Info<'_, 'tcx>, cause_span: Span) -> ObligationCause<'tcx> {
+        self.cause(cause_span, Pattern(ti.root_expected))
     }
 
     fn demand_eqtype_pat_diag(
@@ -101,7 +73,7 @@ impl<'tcx> FnCtxt<'_, 'tcx> {
         cause_span: Span,
         expected: Ty<'tcx>,
         actual: Ty<'tcx>,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Option<DiagnosticBuilder<'tcx>> {
         self.demand_eqtype_with_origin(&self.pattern_cause(ti, cause_span), expected, actual)
     }
@@ -111,7 +83,7 @@ impl<'tcx> FnCtxt<'_, 'tcx> {
         cause_span: Span,
         expected: Ty<'tcx>,
         actual: Ty<'tcx>,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) {
         self.demand_eqtype_pat_diag(cause_span, expected, actual, ti).map(|mut err| err.emit());
     }
@@ -145,7 +117,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         span: Option<Span>,
         origin_expr: bool,
     ) {
-        let info = TopInfo { expected, origin_expr, span, trace: &List { head: pat, tail: None } };
+        let root_expected = PatternCause { root_ty: expected, origin_expr, span };
+        let info = Info { root_expected, trace: &List { head: pat, tail: None } };
         self.check_pat_inner(pat, expected, INITIAL_BM, info);
     }
 
@@ -159,9 +132,9 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         pat: &'tcx Pat<'tcx>,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) {
-        let info = TopInfo { trace: &List { head: pat, tail: Some(ti.trace) }, ..ti };
+        let info = Info { trace: &List { head: pat, tail: Some(ti.trace) }, ..ti };
         self.check_pat_inner(pat, expected, def_bm, info);
     }
 
@@ -171,7 +144,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         pat: &'tcx Pat<'tcx>,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) {
         debug!("check_pat(pat={:?},expected={:?},def_bm={:?})", pat, expected, def_bm);
 
@@ -393,7 +366,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         span: Span,
         lt: &hir::Expr<'tcx>,
         expected: Ty<'tcx>,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         // We've already computed the type above (when checking for a non-ref pat),
         // so avoid computing it again.
@@ -423,7 +396,8 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         let cause = self.pattern_cause(ti, span);
         if let Some(mut err) = self.demand_suptype_with_origin(&cause, expected, pat_ty) {
             err.emit_unless(
-                ti.span
+                ti.root_expected
+                    .span
                     .filter(|&s| {
                         // In the case of `if`- and `while`-expressions we've already checked
                         // that `scrutinee: bool`. We know that the pattern is `true`,
@@ -443,7 +417,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         lhs: Option<&'tcx hir::Expr<'tcx>>,
         rhs: Option<&'tcx hir::Expr<'tcx>>,
         expected: Ty<'tcx>,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let calc_side = |opt_expr: Option<&'tcx hir::Expr<'tcx>>| match opt_expr {
             None => (None, None),
@@ -545,7 +519,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         sub: Option<&'tcx Pat<'tcx>>,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         // Determine the binding mode...
         let bm = match ba {
@@ -590,13 +564,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         local_ty
     }
 
-    fn check_binding_alt_eq_ty(
-        &self,
-        span: Span,
-        var_id: HirId,
-        ty: Ty<'tcx>,
-        ti: TopInfo<'_, 'tcx>,
-    ) {
+    fn check_binding_alt_eq_ty(&self, span: Span, var_id: HirId, ty: Ty<'tcx>, ti: Info<'_, 'tcx>) {
         let var_ty = self.local_ty(span, var_id).decl_ty;
         if let Some(mut err) = self.demand_eqtype_pat_diag(span, var_ty, ty, ti) {
             let hir = self.tcx.hir();
@@ -683,7 +651,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         etc: bool,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         // Resolve the path and check the definition for errors.
         let (variant, pat_ty) = if let Some(variant_ty) = self.check_struct_path(qpath, pat.hir_id)
@@ -713,7 +681,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         path_resolution: (Res, Option<Ty<'tcx>>, &'b [hir::PathSegment<'b>]),
         qpath: &hir::QPath<'_>,
         expected: Ty<'tcx>,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let tcx = self.tcx;
 
@@ -755,7 +723,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         res: Res,
         pat_res: Res,
         segments: &'b [hir::PathSegment<'b>],
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) {
         if let Some(span) = self.tcx.hir().res_span(pat_res) {
             e.span_label(span, &format!("{} defined here", res.descr()));
@@ -791,7 +759,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         ddpos: Option<usize>,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let tcx = self.tcx;
         let on_error = || {
@@ -975,7 +943,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         ddpos: Option<usize>,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let tcx = self.tcx;
         let mut expected_len = elements.len();
@@ -1021,7 +989,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         fields: &'tcx [hir::FieldPat<'tcx>],
         etc: bool,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> bool {
         let tcx = self.tcx;
 
@@ -1251,7 +1219,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         inner: &'tcx Pat<'tcx>,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let tcx = self.tcx;
         let (box_ty, inner_ty) = if self.check_dereferenceable(pat.span, expected, &inner) {
@@ -1278,7 +1246,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         mutbl: hir::Mutability,
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let tcx = self.tcx;
         let expected = self.shallow_resolve(expected);
@@ -1342,7 +1310,7 @@ impl<'a, 'tcx> FnCtxt<'a, 'tcx> {
         after: &'tcx [&'tcx Pat<'tcx>],
         expected: Ty<'tcx>,
         def_bm: BindingMode,
-        ti: TopInfo<'_, 'tcx>,
+        ti: Info<'_, 'tcx>,
     ) -> Ty<'tcx> {
         let err = self.tcx.types.err;
         let expected = self.structurally_resolved_type(pat.span, expected);
