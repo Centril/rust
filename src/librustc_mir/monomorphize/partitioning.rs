@@ -100,7 +100,7 @@ use rustc::middle::codegen_fn_attrs::CodegenFnAttrFlags;
 use rustc::middle::exported_symbols::SymbolExportLevel;
 use rustc::mir::mono::{CodegenUnit, CodegenUnitNameBuilder, Linkage, Visibility};
 use rustc::mir::mono::{InstantiationMode, MonoItem};
-use rustc::ty::print::characteristic_def_id_of_type;
+use rustc::ty::print::{characteristic_def_id_of_type, mono_to_string};
 use rustc::ty::query::Providers;
 use rustc::ty::{self, DefIdTree, InstanceDef, TyCtxt};
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
@@ -783,7 +783,7 @@ where
 
                 debug!(
                     " - {} [{:?}] [{}] estimated size {}",
-                    mono_item.to_string(tcx, true),
+                    mono_to_string(mono_item, tcx, true),
                     linkage,
                     symbol_hash,
                     mono_item.size_estimate(tcx)
@@ -915,7 +915,7 @@ fn collect_and_partition_mono_items(
         let mut item_keys: Vec<_> = items
             .iter()
             .map(|i| {
-                let mut output = i.to_string(tcx, false);
+                let mut output = mono_to_string(i, tcx, false);
                 output.push_str(" @@");
                 let mut empty = Vec::new();
                 let cgus = item_to_cgus.get_mut(i).unwrap_or(&mut empty);

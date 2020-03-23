@@ -118,7 +118,9 @@ pub mod walk;
 mod context;
 mod diagnostics;
 mod instance;
+pub use instance::INST_SUBSTS_DEBUG;
 mod structural_impls;
+pub use structural_impls::{ADT_DEF_DEBUG, TRAIT_DEF_DEBUG};
 mod sty;
 
 // Data types

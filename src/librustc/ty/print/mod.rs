@@ -1,6 +1,7 @@
 use crate::hir::map::{DefPathData, DisambiguatedDefPathData};
+use crate::mir::mono::MonoItem;
 use crate::ty::subst::{GenericArg, Subst};
-use crate::ty::{self, DefIdTree, Ty, TyCtxt};
+use crate::ty::{self, DefIdTree, Instance, Ty, TyCtxt};
 
 use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::{CrateNum, DefId};
@@ -10,6 +11,30 @@ mod pretty;
 pub use self::pretty::*;
 
 pub mod obsolete;
+
+pub fn mono_to_string<'tcx>(mono: &MonoItem<'tcx>, tcx: TyCtxt<'tcx>, debug: bool) -> String {
+    return match *mono {
+        MonoItem::Fn(instance) => to_string_internal(tcx, "fn ", instance, debug),
+        MonoItem::Static(def_id) => {
+            let instance = Instance::new(def_id, tcx.intern_substs(&[]));
+            to_string_internal(tcx, "static ", instance, debug)
+        }
+        MonoItem::GlobalAsm(..) => "global_asm".to_string(),
+    };
+
+    fn to_string_internal<'tcx>(
+        tcx: TyCtxt<'tcx>,
+        prefix: &str,
+        instance: Instance<'tcx>,
+        debug: bool,
+    ) -> String {
+        let mut result = String::with_capacity(32);
+        result.push_str(prefix);
+        let printer = obsolete::DefPathBasedNames::new(tcx, false, false);
+        printer.push_instance_as_string(instance, &mut result, debug);
+        result
+    }
+}
 
 // FIXME(eddyb) false positive, the lifetime parameters are used with `P:  Printer<...>`.
 #[allow(unused_lifetimes)]

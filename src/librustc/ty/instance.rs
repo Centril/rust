@@ -1,9 +1,7 @@
 use crate::middle::codegen_fn_attrs::CodegenFnAttrFlags;
 use crate::middle::lang_items::DropInPlaceFnLangItem;
-use crate::ty::print::{FmtPrinter, Printer};
 use crate::ty::{self, SubstsRef, Ty, TyCtxt, TypeFoldable};
 use rustc_data_structures::AtomicRef;
-use rustc_hir::def::Namespace;
 use rustc_hir::def_id::{CrateNum, DefId};
 use rustc_macros::HashStable;
 
@@ -222,14 +220,23 @@ impl<'tcx> InstanceDef<'tcx> {
     }
 }
 
+fn default_inst_substs_debug(
+    substs: SubstsRef<'_>,
+    _: DefId,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
+    fmt::Debug::fmt(substs, f)
+}
+
+pub static INST_SUBSTS_DEBUG: AtomicRef<
+    fn(SubstsRef<'_>, DefId, &mut fmt::Formatter<'_>) -> fmt::Result,
+> = AtomicRef::new(
+    &(default_inst_substs_debug as fn(SubstsRef<'_>, _, &mut fmt::Formatter<'_>) -> _),
+);
+
 impl<'tcx> fmt::Display for Instance<'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ty::tls::with(|tcx| {
-            let substs = tcx.lift(&self.substs).expect("could not lift for printing");
-            FmtPrinter::new(tcx, &mut *f, Namespace::ValueNS)
-                .print_def_path(self.def_id(), substs)?;
-            Ok(())
-        })?;
+        (*INST_SUBSTS_DEBUG)(self.substs, self.def_id(), f)?;
 
         match self.def {
             InstanceDef::Item(_) => Ok(()),

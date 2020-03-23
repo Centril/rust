@@ -1,10 +1,9 @@
 use crate::base;
 use crate::traits::*;
-use rustc::mir::mono::{Linkage, Visibility};
+use rustc::mir::mono::{Linkage, MonoItem, Visibility};
 use rustc::ty::layout::HasTyCtxt;
+use rustc::ty::print::mono_to_string;
 use rustc_hir as hir;
-
-use rustc::mir::mono::MonoItem;
 
 pub trait MonoItemExt<'a, 'tcx> {
     fn define<Bx: BuilderMethods<'a, 'tcx>>(&self, cx: &'a Bx::CodegenCx);
@@ -21,7 +20,7 @@ impl<'a, 'tcx: 'a> MonoItemExt<'a, 'tcx> for MonoItem<'tcx> {
     fn define<Bx: BuilderMethods<'a, 'tcx>>(&self, cx: &'a Bx::CodegenCx) {
         debug!(
             "BEGIN IMPLEMENTING '{} ({})' in cgu {}",
-            self.to_string(cx.tcx(), true),
+            mono_to_string(self, cx.tcx(), true),
             self.to_raw_string(),
             cx.codegen_unit().name()
         );
@@ -45,7 +44,7 @@ impl<'a, 'tcx: 'a> MonoItemExt<'a, 'tcx> for MonoItem<'tcx> {
 
         debug!(
             "END IMPLEMENTING '{} ({})' in cgu {}",
-            self.to_string(cx.tcx(), true),
+            mono_to_string(self, cx.tcx(), true),
             self.to_raw_string(),
             cx.codegen_unit().name()
         );
@@ -59,7 +58,7 @@ impl<'a, 'tcx: 'a> MonoItemExt<'a, 'tcx> for MonoItem<'tcx> {
     ) {
         debug!(
             "BEGIN PREDEFINING '{} ({})' in cgu {}",
-            self.to_string(cx.tcx(), true),
+            mono_to_string(self, cx.tcx(), true),
             self.to_raw_string(),
             cx.codegen_unit().name()
         );
@@ -80,7 +79,7 @@ impl<'a, 'tcx: 'a> MonoItemExt<'a, 'tcx> for MonoItem<'tcx> {
 
         debug!(
             "END PREDEFINING '{} ({})' in cgu {}",
-            self.to_string(cx.tcx(), true),
+            mono_to_string(self, cx.tcx(), true),
             self.to_raw_string(),
             cx.codegen_unit().name()
         );

@@ -184,6 +184,7 @@ use rustc::mir::mono::{InstantiationMode, MonoItem};
 use rustc::mir::visit::Visitor as MirVisitor;
 use rustc::mir::{self, Local, Location};
 use rustc::ty::adjustment::{CustomCoerceUnsized, PointerCast};
+use rustc::ty::print::mono_to_string;
 use rustc::ty::print::obsolete::DefPathBasedNames;
 use rustc::ty::subst::InternalSubsts;
 use rustc::ty::{self, GenericParamDefKind, Instance, Ty, TyCtxt, TypeFoldable};
@@ -339,7 +340,7 @@ fn collect_items_rec<'tcx>(
         // We've been here already, no need to search again.
         return;
     }
-    debug!("BEGIN collect_items_rec({})", starting_point.to_string(tcx, true));
+    debug!("BEGIN collect_items_rec({})", mono_to_string(&starting_point, tcx, true));
 
     let mut neighbors = Vec::new();
     let recursion_depth_reset;
@@ -385,7 +386,7 @@ fn collect_items_rec<'tcx>(
         recursion_depths.insert(def_id, depth);
     }
 
-    debug!("END collect_items_rec({})", starting_point.to_string(tcx, true));
+    debug!("END collect_items_rec({})", mono_to_string(&starting_point, tcx, true));
 }
 
 fn record_accesses<'tcx>(

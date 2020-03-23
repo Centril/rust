@@ -5,10 +5,9 @@
 use crate::mir::interpret;
 use crate::mir::ProjectionKind;
 use crate::ty::fold::{TypeFoldable, TypeFolder, TypeVisitor};
-use crate::ty::print::{FmtPrinter, Printer};
 use crate::ty::{self, InferConst, Lift, Ty, TyCtxt};
+use rustc_data_structures::AtomicRef;
 use rustc_hir as hir;
-use rustc_hir::def::Namespace;
 use rustc_hir::def_id::CRATE_DEF_INDEX;
 use rustc_index::vec::{Idx, IndexVec};
 
@@ -17,21 +16,41 @@ use std::fmt;
 use std::rc::Rc;
 use std::sync::Arc;
 
+fn default_trait_def_debug(trait_def: &ty::TraitDef, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.debug_struct("TraitDef")
+        .field("def_id", &trait_def.def_id)
+        .field("unsafety", &trait_def.unsafety)
+        .field("paren_sugar", &trait_def.paren_sugar)
+        .field("has_auto_impl", &trait_def.has_auto_impl)
+        .field("is_marker", &trait_def.is_marker)
+        .field("specialization_kind", &trait_def.specialization_kind)
+        .field("def_path_hash", &trait_def.def_path_hash)
+        .finish()
+}
+
+pub static TRAIT_DEF_DEBUG: AtomicRef<fn(&ty::TraitDef, &mut fmt::Formatter<'_>) -> fmt::Result> =
+    AtomicRef::new(&(default_trait_def_debug as fn(&_, &mut fmt::Formatter<'_>) -> _));
+
 impl fmt::Debug for ty::TraitDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ty::tls::with(|tcx| {
-            FmtPrinter::new(tcx, f, Namespace::TypeNS).print_def_path(self.def_id, &[])?;
-            Ok(())
-        })
+        (*TRAIT_DEF_DEBUG)(self, f)
     }
 }
 
+fn default_adt_def_debug(adt_def: &ty::AdtDef, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    f.debug_struct("TraitDef")
+        .field("did", &adt_def.did)
+        .field("variants", &adt_def.variants)
+        .field("repr", &adt_def.repr)
+        .finish()
+}
+
+pub static ADT_DEF_DEBUG: AtomicRef<fn(&ty::AdtDef, &mut fmt::Formatter<'_>) -> fmt::Result> =
+    AtomicRef::new(&(default_adt_def_debug as fn(&_, &mut fmt::Formatter<'_>) -> _));
+
 impl fmt::Debug for ty::AdtDef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        ty::tls::with(|tcx| {
-            FmtPrinter::new(tcx, f, Namespace::TypeNS).print_def_path(self.did, &[])?;
-            Ok(())
-        })
+        (*ADT_DEF_DEBUG)(self, f)
     }
 }
 

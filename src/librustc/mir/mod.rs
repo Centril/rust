@@ -7,13 +7,12 @@ use crate::mir::visit::MirVisitable;
 use crate::ty::adjustment::PointerCast;
 use crate::ty::fold::{TypeFoldable, TypeFolder, TypeVisitor};
 use crate::ty::layout::VariantIdx;
-use crate::ty::print::{FmtPrinter, Printer};
 use crate::ty::subst::{Subst, SubstsRef};
 use crate::ty::{
     self, AdtDef, CanonicalUserTypeAnnotations, List, Region, Ty, TyCtxt, UserTypeAnnotationIndex,
 };
 use rustc_hir as hir;
-use rustc_hir::def::{CtorKind, Namespace};
+use rustc_hir::def::CtorKind;
 use rustc_hir::def_id::DefId;
 use rustc_hir::{self, GeneratorKind};
 
@@ -23,6 +22,7 @@ use rustc_ast::ast::Name;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_data_structures::graph::dominators::Dominators;
 use rustc_data_structures::graph::{self, GraphSuccessors};
+use rustc_data_structures::AtomicRef;
 use rustc_index::bit_set::BitMatrix;
 use rustc_index::vec::{Idx, IndexVec};
 use rustc_macros::HashStable;
@@ -2260,13 +2260,7 @@ impl<'tcx> Debug for Rvalue<'tcx> {
                     AggregateKind::Adt(adt_def, variant, substs, _user_ty, _) => {
                         let variant_def = &adt_def.variants[variant];
 
-                        let f = &mut *fmt;
-                        ty::tls::with(|tcx| {
-                            let substs = tcx.lift(&substs).expect("could not lift for printing");
-                            FmtPrinter::new(tcx, f, Namespace::ValueNS)
-                                .print_def_path(variant_def.def_id, substs)?;
-                            Ok(())
-                        })?;
+                        (*crate::ty::INST_SUBSTS_DEBUG)(substs, variant_def.def_id, fmt)?;
 
                         match variant_def.ctor_kind {
                             CtorKind::Const => Ok(()),
@@ -2560,17 +2554,16 @@ impl<'tcx> Debug for Constant<'tcx> {
     }
 }
 
+fn default_constant_display(c: &Constant<'_>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmt::Debug::fmt(c, f)
+}
+
+pub static CONSTANT_DISPLAY: AtomicRef<fn(&Constant<'_>, &mut fmt::Formatter<'_>) -> fmt::Result> =
+    AtomicRef::new(&(default_constant_display as fn(&Constant<'_>, &mut fmt::Formatter<'_>) -> _));
+
 impl<'tcx> Display for Constant<'tcx> {
-    fn fmt(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
-        use crate::ty::print::PrettyPrinter;
-        write!(fmt, "const ")?;
-        ty::tls::with(|tcx| {
-            let literal = tcx.lift(&self.literal).unwrap();
-            let mut cx = FmtPrinter::new(tcx, fmt, Namespace::ValueNS);
-            cx.print_alloc_ids = true;
-            cx.pretty_print_const(literal, true)?;
-            Ok(())
-        })
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        (*CONSTANT_DISPLAY)(self, f)
     }
 }
 
