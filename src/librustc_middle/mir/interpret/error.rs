@@ -1,4 +1,4 @@
-use super::{AllocId, CheckInAllocMsg, Pointer, RawConst, ScalarMaybeUndef};
+use super::{AllocId, Pointer, RawConst, ScalarMaybeUndef};
 
 use crate::mir::interpret::ConstValue;
 use crate::ty::layout::LayoutError;
@@ -313,6 +313,32 @@ impl fmt::Debug for InvalidProgramInfo<'_> {
                 from_ty, to_ty
             ),
         }
+    }
+}
+
+/// Used by `check_in_alloc` to indicate context of check
+#[derive(Debug, Copy, Clone, RustcEncodable, RustcDecodable, HashStable)]
+pub enum CheckInAllocMsg {
+    MemoryAccessTest,
+    NullPointerTest,
+    PointerArithmeticTest,
+    InboundsTest,
+}
+
+impl fmt::Display for CheckInAllocMsg {
+    /// When this is printed as an error the context looks like this
+    /// "{test name} failed: pointer must be in-bounds at offset..."
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match *self {
+                CheckInAllocMsg::MemoryAccessTest => "Memory access",
+                CheckInAllocMsg::NullPointerTest => "Null pointer test",
+                CheckInAllocMsg::PointerArithmeticTest => "Pointer arithmetic",
+                CheckInAllocMsg::InboundsTest => "Inbounds test",
+            }
+        )
     }
 }
 
