@@ -6,19 +6,19 @@ LL | impl W <s(f;Y(;]
    |          |
    |          unclosed delimiter
 
-error: expected one of `!`, `(`, `)`, `+`, `,`, `::`, or `<`, found `;`
+error: expected list separator `,`, found `;`
   --> $DIR/issue-63116.rs:3:12
    |
 LL | impl W <s(f;Y(;]
-   |            ^ expected one of 7 possible tokens
+   |          - ^ help: use the expected separator: `,`
+   |          |
+   |          while parsing the list starting here
 
-error: expected one of `!`, `&&`, `&`, `(`, `)`, `*`, `+`, `,`, `->`, `...`, `::`, `<`, `>`, `?`, `[`, `_`, `async`, `const`, `dyn`, `extern`, `fn`, `for`, `impl`, `unsafe`, lifetime, or path, found `;`
+error: expected type, found `;`
   --> $DIR/issue-63116.rs:3:15
    |
 LL | impl W <s(f;Y(;]
-   |              -^ help: `)` may belong here
-   |              |
-   |              unclosed delimiter
+   |               ^ expected type
 
 error: aborting due to 3 previous errors
 

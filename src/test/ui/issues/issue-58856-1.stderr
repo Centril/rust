@@ -1,22 +1,28 @@
-error: expected one of `)`, `,`, or `:`, found `>`
+error: expected parameter name, found `>`
   --> $DIR/issue-58856-1.rs:3:14
    |
 LL |     fn b(self>
-   |         -    ^ help: `)` may belong here
-   |         |
-   |         unclosed delimiter
+   |              ^ expected parameter name
 
-error: expected `;` or `{`, found `>`
-  --> $DIR/issue-58856-1.rs:3:14
+error: missing separator `,`
+  --> $DIR/issue-58856-1.rs:3:15
+   |
+LL |     fn b(self>
+   |         -     ^ help: missing `,`
+   |         |
+   |         while parsing the list starting here
+
+error: expected `;` or `{`, found `)`
+  --> $DIR/issue-58856-1.rs:6:1
    |
 LL | impl A {
    |        - while parsing this item list starting here
-LL |
-LL |     fn b(self>
-   |              ^ expected `;` or `{`
 ...
 LL | }
-   | - the item list ends here
+   | ^
+   | |
+   | expected `;` or `{`
+   | the item list ends here
 
 error[E0412]: cannot find type `A` in this scope
   --> $DIR/issue-58856-1.rs:1:6
@@ -24,6 +30,6 @@ error[E0412]: cannot find type `A` in this scope
 LL | impl A {
    |      ^ not found in this scope
 
-error: aborting due to 3 previous errors
+error: aborting due to 4 previous errors
 
 For more information about this error, try `rustc --explain E0412`.

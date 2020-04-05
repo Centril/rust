@@ -1,11 +1,16 @@
-error: expected one of `,`, `::`, `as`, or `}`, found `.`
+error: expected list separator `,`, found `.`
   --> $DIR/similar-tokens.rs:7:10
    |
 LL | use x::{A. B};
-   |          ^
-   |          |
-   |          expected one of `,`, `::`, `as`, or `}`
-   |          help: missing `,`
+   |        - ^ help: use the expected separator: `,`
+   |        |
+   |        while parsing the list starting here
 
-error: aborting due to previous error
+error: expected one of `::`, `;`, or `as`, found `}`
+  --> $DIR/similar-tokens.rs:7:13
+   |
+LL | use x::{A. B};
+   |             ^ expected one of `::`, `;`, or `as`
+
+error: aborting due to 2 previous errors
 

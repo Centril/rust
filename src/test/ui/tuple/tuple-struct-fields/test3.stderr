@@ -1,28 +1,27 @@
-error: expected one of `)` or `,`, found `(`
-  --> $DIR/test3.rs:5:27
+error: missing separator `,`
+  --> $DIR/test3.rs:5:28
    |
 LL |         struct S3(pub($t) ());
-   |                          -^ expected one of `)` or `,`
-   |                          |
-   |                          help: missing `,`
+   |                  ----------^-
+   |                  |         |
+   |                  |         help: missing `,`
+   |                  while parsing the list starting here
 ...
 LL |     define_struct! { foo }
    |     ---------------------- in this macro invocation
    |
    = note: this error originates in a macro (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0412]: cannot find type `foo` in this scope
-  --> $DIR/test3.rs:11:22
+error: expected one of `;` or `where`, found `)`
+  --> $DIR/test3.rs:5:18
    |
+LL |         struct S3(pub($t) ());
+   |                  ^^^^^^^^^^^^ expected one of `;` or `where`
+...
 LL |     define_struct! { foo }
-   |                      ^^^ not found in this scope
-
-error[E0412]: cannot find type `foo` in this scope
-  --> $DIR/test3.rs:11:22
+   |     ---------------------- in this macro invocation
    |
-LL |     define_struct! { foo }
-   |                      ^^^ not found in this scope
+   = note: this error originates in a macro (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: aborting due to 3 previous errors
+error: aborting due to 2 previous errors
 
-For more information about this error, try `rustc --explain E0412`.

@@ -1,10 +1,10 @@
-error: expected `,`, found `&`
-  --> $DIR/issue-66706.rs:2:16
+error: missing separator `,`
+  --> $DIR/issue-66706.rs:2:17
    |
 LL |     [0; [|_: _ &_| ()].len()]
-   |               -^ expected `,`
-   |               |
-   |               help: missing `,`
+   |          -      ^ help: missing `,`
+   |          |
+   |          while parsing the list starting here
 
 error: expected identifier, found reserved identifier `_`
   --> $DIR/issue-66706.rs:9:20

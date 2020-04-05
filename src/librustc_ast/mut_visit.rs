@@ -311,8 +311,11 @@ where
         // Safe because `t` is used in a read-only fashion by `read()` before
         // being overwritten by `write()`.
         let old_t = ptr::read(t);
-        let new_t = panic::catch_unwind(panic::AssertUnwindSafe(|| f(old_t)))
-            .unwrap_or_else(|_| process::abort());
+        let new_t =
+            panic::catch_unwind(panic::AssertUnwindSafe(|| f(old_t))).unwrap_or_else(|_| {
+                println!("{}", std::backtrace::Backtrace::force_capture());
+                process::abort()
+            });
         ptr::write(t, new_t);
     }
 }

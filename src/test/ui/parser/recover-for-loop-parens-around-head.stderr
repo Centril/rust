@@ -1,8 +1,10 @@
-error: expected one of `)`, `,`, `@`, or `|`, found keyword `in`
-  --> $DIR/recover-for-loop-parens-around-head.rs:10:16
+error: missing separator `,`
+  --> $DIR/recover-for-loop-parens-around-head.rs:10:18
    |
 LL |     for ( elem in vec ) {
-   |                ^^ expected one of `)`, `,`, `@`, or `|`
+   |         -        ^
+   |         |
+   |         while parsing the list starting here
 
 error: unexpected closing `)`
   --> $DIR/recover-for-loop-parens-around-head.rs:10:23

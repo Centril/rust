@@ -4,11 +4,13 @@ error: expected one of `!`, `(`, `+`, `::`, `;`, `<`, or `=`, found `@`
 LL |     let a: u8 @ b = 0;
    |               ^ expected one of 7 possible tokens
 
-error: expected one of `)`, `,`, `@`, or `|`, found `:`
-  --> $DIR/nested-type-ascription-syntactically-invalid.rs:25:15
+error: missing separator `,`
+  --> $DIR/nested-type-ascription-syntactically-invalid.rs:25:16
    |
 LL |     let a @ (b: u8);
-   |               ^ expected one of `)`, `,`, `@`, or `|`
+   |             -  ^
+   |             |
+   |             while parsing the list starting here
 
 error: expected one of `!`, `(`, `+`, `::`, `;`, `<`, or `=`, found `)`
   --> $DIR/nested-type-ascription-syntactically-invalid.rs:25:19

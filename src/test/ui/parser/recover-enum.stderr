@@ -1,37 +1,35 @@
-error: expected one of `(`, `,`, `=`, `{`, or `}`, found `Bad`
-  --> $DIR/recover-enum.rs:4:9
+error: missing separator `,`
+  --> $DIR/recover-enum.rs:4:12
    |
+LL |     enum Test {
+   |               - while parsing the list starting here
 LL |         Very
-   |             -
-   |             |
-   |             expected one of `(`, `,`, `=`, `{`, or `}`
-   |             help: missing `,`
 LL |         Bad(usize)
-   |         ^^^ unexpected token
+   |            ^ help: missing `,`
 
-error: expected one of `,`, `=`, or `}`, found `Stuff`
-  --> $DIR/recover-enum.rs:6:9
+error: missing separator `,`
+  --> $DIR/recover-enum.rs:6:14
    |
-LL |         Bad(usize)
-   |                   -
-   |                   |
-   |                   expected one of `,`, `=`, or `}`
-   |                   help: missing `,`
-LL |
+LL |     enum Test {
+   |               - while parsing the list starting here
+...
 LL |         Stuff { a: usize }
-   |         ^^^^^ unexpected token
+   |              ^ help: missing `,`
 
-error: expected one of `,`, `=`, or `}`, found `Here`
-  --> $DIR/recover-enum.rs:8:9
+error: missing separator `,`
+  --> $DIR/recover-enum.rs:8:13
    |
-LL |         Stuff { a: usize }
-   |                           -
-   |                           |
-   |                           expected one of `,`, `=`, or `}`
-   |                           help: missing `,`
-LL |
+LL |     enum Test {
+   |               - while parsing the list starting here
+...
 LL |         Here
-   |         ^^^^ unexpected token
+   |             ^ help: missing `,`
 
-error: aborting due to 3 previous errors
+error: expected item, found `}`
+  --> $DIR/recover-enum.rs:11:1
+   |
+LL | }
+   | ^ expected item
+
+error: aborting due to 4 previous errors
 

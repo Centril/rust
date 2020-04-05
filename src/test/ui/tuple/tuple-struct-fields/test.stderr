@@ -1,17 +1,16 @@
-error: expected one of `)` or `,`, found `(`
-  --> $DIR/test.rs:4:26
+error: missing separator `,`
+  --> $DIR/test.rs:4:27
    |
 LL |     struct S2(pub((foo)) ());
-   |                         -^ expected one of `)` or `,`
-   |                         |
-   |                         help: missing `,`
+   |              -            ^ help: missing `,`
+   |              |
+   |              while parsing the list starting here
 
-error[E0412]: cannot find type `foo` in this scope
-  --> $DIR/test.rs:4:20
+error: expected one of `;` or `where`, found `)`
+  --> $DIR/test.rs:4:28
    |
 LL |     struct S2(pub((foo)) ());
-   |                    ^^^ not found in this scope
+   |                            ^ expected one of `;` or `where`
 
 error: aborting due to 2 previous errors
 
-For more information about this error, try `rustc --explain E0412`.

@@ -4,11 +4,33 @@ error: expected type, found `{`
 LL |             abc: {},
    |                  ^ expected type
 
-error: expected one of `!`, `(`, `)`, `+`, `,`, `::`, or `<`, found `{`
-  --> $DIR/recover-enum2.rs:25:22
+error: missing separator `,`
+  --> $DIR/recover-enum2.rs:25:23
    |
 LL |             Nope(i32 {})
-   |                      ^ expected one of 7 possible tokens
+   |                 -     ^
+   |                 |
+   |                 while parsing the list starting here
 
-error: aborting due to 2 previous errors
+error: missing separator `,`
+  --> $DIR/recover-enum2.rs:25:23
+   |
+LL |         enum Test4 {
+   |                    - while parsing the list starting here
+LL |             Nope(i32 {})
+   |                       ^
+
+error: expected expression, found `)`
+  --> $DIR/recover-enum2.rs:25:24
+   |
+LL |             Nope(i32 {})
+   |                        ^ expected expression
+
+error: expected item, found `}`
+  --> $DIR/recover-enum2.rs:28:1
+   |
+LL | }
+   | ^ expected item
+
+error: aborting due to 5 previous errors
 

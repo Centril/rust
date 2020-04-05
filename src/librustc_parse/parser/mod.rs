@@ -633,6 +633,7 @@ impl<'a> Parser<'a> {
         expect: TokenExpectType,
         mut f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
+        let lo = self.prev_token.span;
         let mut first = true;
         let mut recovered = false;
         let mut trailing = false;
@@ -645,45 +646,56 @@ impl<'a> Parser<'a> {
                 if first {
                     first = false;
                 } else {
-                    match self.expect(t) {
-                        Ok(false) => {}
-                        Ok(true) => {
-                            recovered = true;
-                            break;
-                        }
-                        Err(mut expect_err) => {
-                            let sp = self.prev_token.span.shrink_to_hi();
-                            let token_str = pprust::token_kind_to_string(t);
+                    let ate_separator = self.eat(t);
+                    if !ate_separator {
+                        let span = self.token.span;
+                        let e_str = pprust::token_kind_to_string(t);
+                        let a_str = pprust::token_kind_to_string(&self.token.kind);
 
-                            // Attempt to keep parsing if it was a similar separator.
-                            if let Some(ref tokens) = t.similar_tokens() {
-                                if tokens.contains(&self.token.kind) {
-                                    self.bump();
-                                }
-                            }
+                        // Attempt to keep parsing if it was a similar separator.
+                        if t.similar_tokens().unwrap_or_default().contains(&self.token.kind) {
+                            self.struct_span_err(
+                                span,
+                                &format!("expected list separator `{}`, found `{}`", e_str, a_str),
+                            )
+                            .span_label(lo, "while parsing the list starting here")
+                            .span_suggestion(
+                                span,
+                                "use the expected separator",
+                                e_str,
+                                Applicability::MachineApplicable,
+                            )
+                            .emit();
+
+                            self.bump();
+                            recovered = true;
+                        } else {
+                            let span = span.shrink_to_hi();
+                            let mut err = self
+                                .struct_span_err(span, &format!("missing separator `{}`", e_str));
+                            err.span_label(lo, "while parsing the list starting here");
 
                             // Attempt to keep parsing if it was an omitted separator.
                             match f(self) {
                                 Ok(t) => {
-                                    // Parsed successfully, therefore most probably the code only
-                                    // misses a separator.
-                                    expect_err
-                                        .span_suggestion_short(
-                                            sp,
-                                            &format!("missing `{}`", token_str),
-                                            token_str,
-                                            Applicability::MaybeIncorrect,
-                                        )
-                                        .emit();
+                                    // Parsed successfully,
+                                    // therefore most probably the code only misses a separator.
+                                    err.span_suggestion_short(
+                                        span,
+                                        &format!("missing `{}`", e_str),
+                                        e_str,
+                                        Applicability::MaybeIncorrect,
+                                    )
+                                    .emit();
 
                                     v.push(t);
+                                    recovered = true;
                                     continue;
                                 }
                                 Err(mut e) => {
                                     // Parsing failed, therefore it must be something more serious
                                     // than just a missing separator.
-                                    expect_err.emit();
-
+                                    err.emit();
                                     e.cancel();
                                     break;
                                 }

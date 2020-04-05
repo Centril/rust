@@ -1,11 +1,22 @@
-error: expected one of `)`, `,`, `@`, or `|`, found `[`
-  --> $DIR/pat-lt-bracket-7.rs:5:16
+error: missing separator `,`
+  --> $DIR/pat-lt-bracket-7.rs:5:17
    |
 LL |     for Thing(x[]) in foo {}
-   |                ^
-   |                |
-   |                expected one of `)`, `,`, `@`, or `|`
-   |                help: missing `,`
+   |              -  ^ help: missing `,`
+   |              |
+   |              while parsing the list starting here
+
+error: missing `in` in `for` loop
+  --> $DIR/pat-lt-bracket-7.rs:5:18
+   |
+LL |     for Thing(x[]) in foo {}
+   |                  ^ help: try adding `in` here
+
+error: expected expression, found `)`
+  --> $DIR/pat-lt-bracket-7.rs:5:18
+   |
+LL |     for Thing(x[]) in foo {}
+   |                  ^ expected expression
 
 error[E0308]: mismatched types
   --> $DIR/pat-lt-bracket-7.rs:9:30
@@ -13,6 +24,6 @@ error[E0308]: mismatched types
 LL | const RECOVERY_WITNESS: () = 0;
    |                              ^ expected `()`, found integer
 
-error: aborting due to 2 previous errors
+error: aborting due to 4 previous errors
 
 For more information about this error, try `rustc --explain E0308`.

@@ -4,11 +4,13 @@ error: `?` may only modify trait bounds, not lifetime bounds
 LL | enum e{A((?'a a+?+l))}
    |           ^
 
-error: expected one of `)`, `+`, or `,`, found `a`
-  --> $DIR/issue-68890.rs:1:15
+error: missing separator `,`
+  --> $DIR/issue-68890.rs:1:16
    |
 LL | enum e{A((?'a a+?+l))}
-   |               ^ expected one of `)`, `+`, or `,`
+   |          -     ^
+   |          |
+   |          while parsing the list starting here
 
 error: expected item, found `)`
   --> $DIR/issue-68890.rs:1:21
