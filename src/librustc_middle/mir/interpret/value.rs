@@ -1,14 +1,12 @@
 use std::convert::TryFrom;
 use std::fmt;
 
-use rustc_apfloat::{
-    ieee::{Double, Single},
-    Float,
-};
+use rustc_apfloat::ieee::{Double, Single};
+use rustc_apfloat::Float;
 use rustc_macros::HashStable;
 use rustc_target::abi::{HasDataLayout, Size, TargetDataLayout};
 
-use crate::ty::{ParamEnv, Ty, TyCtxt};
+use crate::ty::Ty;
 
 use super::{sign_extend, truncate, AllocId, Allocation, InterpResult, Pointer, PointerArithmetic};
 
@@ -58,16 +56,6 @@ impl<'tcx> ConstValue<'tcx> {
 
     pub fn try_to_bits(&self, size: Size) -> Option<u128> {
         self.try_to_scalar()?.to_bits(size).ok()
-    }
-
-    pub fn try_to_bits_for_ty(
-        &self,
-        tcx: TyCtxt<'tcx>,
-        param_env: ParamEnv<'tcx>,
-        ty: Ty<'tcx>,
-    ) -> Option<u128> {
-        let size = tcx.layout_of(param_env.with_reveal_all().and(ty)).ok()?.size;
-        self.try_to_bits(size)
     }
 
     pub fn from_bool(b: bool) -> Self {

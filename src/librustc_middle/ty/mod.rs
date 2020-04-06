@@ -2508,7 +2508,8 @@ impl<'tcx> AdtDef {
         match tcx.const_eval_poly(expr_did) {
             Ok(val) => {
                 let ty = repr_type.to_ty(tcx);
-                if let Some(b) = val.try_to_bits_for_ty(tcx, param_env, ty) {
+                let size = tcx.layout_of(param_env.with_reveal_all().and(ty)).ok()?.size;
+                if let Some(b) = val.try_to_bits(size) {
                     trace!("discriminants: {} ({:?})", b, repr_type);
                     Some(Discr { val: b, ty })
                 } else {
