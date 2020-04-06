@@ -1,10 +1,9 @@
-use super::{AllocId, Pointer, RawConst, ScalarMaybeUndef};
+use super::{AllocId, ConstValue, Pointer, RawConst, ScalarMaybeUndef};
 
-use crate::mir::interpret::ConstValue;
 use crate::ty::layout::LayoutError;
 use crate::ty::query::TyCtxtAt;
 use crate::ty::tls;
-use crate::ty::{self, layout, Ty};
+use crate::ty::{self, Ty};
 
 use backtrace::Backtrace;
 use rustc_data_structures::sync::Lock;
@@ -290,7 +289,7 @@ pub enum InvalidProgramInfo<'tcx> {
     /// Abort in case type errors are reached.
     TypeckError,
     /// An error occurred during layout computation.
-    Layout(layout::LayoutError<'tcx>),
+    Layout(LayoutError<'tcx>),
     /// An invalid transmute happened.
     TransmuteSizeDiff(Ty<'tcx>, Ty<'tcx>),
 }
