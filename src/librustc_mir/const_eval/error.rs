@@ -5,7 +5,7 @@ use rustc_middle::mir::AssertKind;
 use rustc_span::Symbol;
 
 use super::InterpCx;
-use crate::interpret::{ConstEvalErr, InterpErrorInfo, Machine};
+use crate::interpret::{ConstEvalErr, ErrorAndBacktrace, InterpError, Machine};
 
 /// The CTFE machine has some custom error kinds.
 #[derive(Clone, Debug)]
@@ -16,6 +16,8 @@ pub enum ConstEvalErrKind {
     AssertFailure(AssertKind<u64>),
     Panic { msg: Symbol, line: u32, col: u32, file: Symbol },
 }
+
+type InterpErrorInfo<'tcx> = ErrorAndBacktrace<InterpError<'tcx>>;
 
 // The errors become `MachineStop` with plain strings when being raised.
 // `ConstEvalErr` (in `librustc_middle/mir/interpret/error.rs`) knows to

@@ -52,18 +52,18 @@ pub fn struct_error<'tcx>(tcx: TyCtxtAt<'tcx>, msg: &str) -> DiagnosticBuilder<'
 /// a `InterpError`. In `librustc_mir::interpret`, we have `throw_err_*`
 /// macros for this.
 #[derive(Debug)]
-pub struct InterpErrorInfo<'tcx> {
-    pub kind: InterpError<'tcx>,
+pub struct ErrorAndBacktrace<Error> {
+    pub kind: Error,
     backtrace: Option<Box<Backtrace>>,
 }
 
-impl fmt::Display for InterpErrorInfo<'_> {
+impl<Error: fmt::Display> fmt::Display for ErrorAndBacktrace<Error> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.kind)
     }
 }
 
-impl InterpErrorInfo<'_> {
+impl<T> ErrorAndBacktrace<T> {
     pub fn print_backtrace(&mut self) {
         if let Some(ref mut backtrace) = self.backtrace {
             print_backtrace(&mut *backtrace);
@@ -76,7 +76,7 @@ fn print_backtrace(backtrace: &mut Backtrace) {
     eprintln!("\n\nAn error occurred in miri:\n{:?}", backtrace);
 }
 
-impl From<ErrorHandled> for InterpErrorInfo<'_> {
+impl From<ErrorHandled> for ErrorAndBacktrace<InterpError<'_>> {
     fn from(err: ErrorHandled) -> Self {
         match err {
             ErrorHandled::Reported => err_inval!(ReferencedConstant),
@@ -86,8 +86,8 @@ impl From<ErrorHandled> for InterpErrorInfo<'_> {
     }
 }
 
-impl<'tcx> From<InterpError<'tcx>> for InterpErrorInfo<'tcx> {
-    fn from(kind: InterpError<'tcx>) -> Self {
+impl<Error> From<Error> for ErrorAndBacktrace<Error> {
+    fn from(kind: Error) -> Self {
         let capture_backtrace = tls::with_context_opt(|ctxt| {
             if let Some(ctxt) = ctxt {
                 *Lock::borrow(&ctxt.tcx.sess.ctfe_backtrace)
@@ -107,7 +107,7 @@ impl<'tcx> From<InterpError<'tcx>> for InterpErrorInfo<'tcx> {
             }
         };
 
-        InterpErrorInfo { kind, backtrace }
+        Self { kind, backtrace }
     }
 }
 
@@ -394,7 +394,7 @@ pub enum InterpError<'tcx> {
     MachineStop(Box<dyn MachineStopType>),
 }
 
-pub type InterpResult<'tcx, T = ()> = Result<T, InterpErrorInfo<'tcx>>;
+pub type InterpResult<'tcx, T = ()> = Result<T, ErrorAndBacktrace<InterpError<'tcx>>>;
 
 impl fmt::Display for InterpError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
