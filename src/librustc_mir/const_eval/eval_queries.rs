@@ -1,13 +1,13 @@
 use super::{error_to_const_error, CompileTimeEvalContext, CompileTimeInterpreter, MemoryExtra};
 use crate::interpret::eval_nullary_intrinsic;
 use crate::interpret::{
-    intern_const_alloc_recursive, Allocation, ConstValue, GlobalId, ImmTy, Immediate, InternKind,
-    InterpCx, InterpResult, MPlaceTy, MemoryKind, OpTy, RawConst, RefTracking, Scalar,
+    intern_const_alloc_recursive, Allocation, ConstEvalErr, ConstValue, GlobalId, ImmTy, Immediate,
+    InternKind, InterpCx, InterpResult, MPlaceTy, MemoryKind, OpTy, RawConst, RefTracking, Scalar,
     ScalarMaybeUndef, StackPopCleanup,
 };
 use rustc_hir::def::DefKind;
 use rustc_middle::mir;
-use rustc_middle::mir::interpret::{ConstEvalErr, ErrorHandled};
+use rustc_middle::mir::interpret::ErrorHandled;
 use rustc_middle::traits::Reveal;
 use rustc_middle::ty::{self, subst::Subst, TyCtxt};
 use rustc_span::source_map::Span;

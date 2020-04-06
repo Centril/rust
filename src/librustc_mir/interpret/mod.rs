@@ -1,6 +1,7 @@
 //! An interpreter for MIR used in CTFE and by miri
 
 mod cast;
+mod error;
 mod eval_context;
 mod intern;
 mod intrinsics;
@@ -17,6 +18,7 @@ mod visitor;
 
 pub use rustc_middle::mir::interpret::*; // have all the `interpret` symbols in one place: here
 
+pub use self::error::{ConstEvalErr, FrameInfo};
 pub use self::eval_context::{Frame, InterpCx, LocalState, LocalValue, StackPopCleanup};
 pub use self::intern::{intern_const_alloc_recursive, InternKind};
 pub use self::machine::{AllocMap, Machine, MayLeak, StackPopJump};
