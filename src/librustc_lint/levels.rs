@@ -5,7 +5,7 @@ use rustc_ast::attr;
 use rustc_ast::unwrap_or;
 use rustc_ast_pretty::pprust;
 use rustc_data_structures::fx::FxHashMap;
-use rustc_errors::{struct_span_err, Applicability};
+use rustc_errors::{struct_span_err, Applicability, DiagnosticBuilder};
 use rustc_hir as hir;
 use rustc_hir::def_id::{CrateNum, LOCAL_CRATE};
 use rustc_hir::{intravisit, HirId};
@@ -17,7 +17,7 @@ use rustc_middle::ty::TyCtxt;
 use rustc_session::lint::{builtin, Level, Lint};
 use rustc_session::parse::feature_err;
 use rustc_session::Session;
-use rustc_span::source_map::MultiSpan;
+use rustc_span::source_map::{MultiSpan, Span};
 use rustc_span::symbol::{sym, Symbol};
 
 use std::cmp;
@@ -51,6 +51,50 @@ pub struct LintLevelsBuilder<'s> {
 pub struct BuilderPush {
     prev: u32,
     pub changed: bool,
+}
+
+fn bad_attr(sess: &Session, span: Span) -> DiagnosticBuilder<'_> {
+    struct_span_err!(sess, span, E0452, "malformed lint attribute input")
+}
+
+fn extract_lint_reason(sess: &Session, metas: &mut &[ast::NestedMetaItem]) -> Option<Symbol> {
+    if let Some(item) = metas[metas.len() - 1].meta_item() {
+        match item.kind {
+            ast::MetaItemKind::Word => {} // actual lint names handled later
+            ast::MetaItemKind::NameValue(ref name_value) => {
+                if item.path == sym::reason {
+                    // found reason, reslice meta list to exclude it
+                    *metas = &metas[0..metas.len() - 1];
+                    // FIXME (#55112): issue unused-attributes lint if we thereby
+                    // don't have any lint names (`#[level(reason = "foo")]`)
+                    if let ast::LitKind::Str(rationale, _) = name_value.kind {
+                        if !sess.features_untracked().lint_reasons {
+                            feature_err(
+                                &sess.parse_sess,
+                                sym::lint_reasons,
+                                item.span,
+                                "lint reasons are experimental",
+                            )
+                            .emit();
+                        }
+                        return Some(rationale);
+                    } else {
+                        bad_attr(sess, name_value.span)
+                            .span_label(name_value.span, "reason must be a string literal")
+                            .emit();
+                    }
+                } else {
+                    bad_attr(sess, item.span)
+                        .span_label(item.span, "bad attribute argument")
+                        .emit();
+                }
+            }
+            ast::MetaItemKind::List(_) => {
+                bad_attr(sess, item.span).span_label(item.span, "bad attribute argument").emit();
+            }
+        }
+    }
+    None
 }
 
 impl<'s> LintLevelsBuilder<'s> {
@@ -110,7 +154,6 @@ impl<'s> LintLevelsBuilder<'s> {
     pub fn push(&mut self, attrs: &[ast::Attribute], store: &LintStore) -> BuilderPush {
         let mut specs = FxHashMap::default();
         let sess = self.sess;
-        let bad_attr = |span| struct_span_err!(sess, span, E0452, "malformed lint attribute input");
         for attr in attrs {
             let level = match Level::from_symbol(attr.name_or_empty()) {
                 None => continue,
@@ -129,51 +172,14 @@ impl<'s> LintLevelsBuilder<'s> {
 
             // Before processing the lint names, look for a reason (RFC 2383)
             // at the end.
-            let mut reason = None;
-            let tail_li = &metas[metas.len() - 1];
-            if let Some(item) = tail_li.meta_item() {
-                match item.kind {
-                    ast::MetaItemKind::Word => {} // actual lint names handled later
-                    ast::MetaItemKind::NameValue(ref name_value) => {
-                        if item.path == sym::reason {
-                            // found reason, reslice meta list to exclude it
-                            metas = &metas[0..metas.len() - 1];
-                            // FIXME (#55112): issue unused-attributes lint if we thereby
-                            // don't have any lint names (`#[level(reason = "foo")]`)
-                            if let ast::LitKind::Str(rationale, _) = name_value.kind {
-                                if !self.sess.features_untracked().lint_reasons {
-                                    feature_err(
-                                        &self.sess.parse_sess,
-                                        sym::lint_reasons,
-                                        item.span,
-                                        "lint reasons are experimental",
-                                    )
-                                    .emit();
-                                }
-                                reason = Some(rationale);
-                            } else {
-                                bad_attr(name_value.span)
-                                    .span_label(name_value.span, "reason must be a string literal")
-                                    .emit();
-                            }
-                        } else {
-                            bad_attr(item.span)
-                                .span_label(item.span, "bad attribute argument")
-                                .emit();
-                        }
-                    }
-                    ast::MetaItemKind::List(_) => {
-                        bad_attr(item.span).span_label(item.span, "bad attribute argument").emit();
-                    }
-                }
-            }
+            let reason = extract_lint_reason(sess, &mut metas);
 
             for li in metas {
                 let meta_item = match li.meta_item() {
                     Some(meta_item) if meta_item.is_word() => meta_item,
                     _ => {
                         let sp = li.span();
-                        let mut err = bad_attr(sp);
+                        let mut err = bad_attr(sess, sp);
                         let mut add_label = true;
                         if let Some(item) = li.meta_item() {
                             if let ast::MetaItemKind::NameValue(_) = item.kind {
