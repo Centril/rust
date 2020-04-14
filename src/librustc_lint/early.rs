@@ -15,6 +15,7 @@
 //! for all lint attributes.
 
 use crate::context::{EarlyContext, LintContext, LintStore};
+use crate::levels::extract_lint_directives;
 use crate::passes::{EarlyLintPass, EarlyLintPassObject};
 use rustc_ast::ast;
 use rustc_ast::visit as ast_visit;
@@ -54,7 +55,8 @@ impl<'a, T: EarlyLintPass> EarlyContextAndPass<'a, T> {
     where
         F: FnOnce(&mut Self),
     {
-        let push = self.context.builder.push(attrs, &self.context.lint_store);
+        let directives = extract_lint_directives(self.context.sess, attrs);
+        let push = self.context.builder.push(directives, &self.context.lint_store);
         self.check_id(id);
         self.enter_attrs(attrs);
         f(self);

@@ -28,7 +28,7 @@ fn lint_levels(tcx: TyCtxt<'_>, cnum: CrateNum) -> &LintLevelMap {
     let mut builder = LintLevelMapBuilder { levels, tcx, store };
     let krate = tcx.hir().krate();
 
-    let push = builder.levels.push(&krate.item.attrs, &store);
+    let push = builder.levels.push(extract_lint_directives(tcx.sess, &krate.item.attrs), &store);
     builder.levels.register_id(hir::CRATE_HIR_ID);
     for macro_def in krate.exported_macros {
         builder.levels.register_id(macro_def.hir_id);
@@ -132,15 +132,24 @@ fn extract_tool_name(sess: &Session, meta_item: &ast::MetaItem) -> Option<Option
     }
 }
 
-struct LintDirective {
+/// Semantic representation of `#[level(...)]` lint control attributes.
+crate struct LintDirective {
+    /// The level for the lint we've been directive to use.
     level: Level,
+    /// Name of the lint to control, i.e. the `name` in `#![allow(name)]`.
     name: Symbol,
+    /// Where the control attribute was introduced.
     span: Span,
+    /// Optionally, a reason for this lint control, per RFC 2383.
     reason: Option<Symbol>,
+    /// Optionally, a tool name, e.g., `clippy` in `clippy::foo_lint`.
     tool_name: Option<Symbol>,
 }
 
-fn extract_lint_directives<'a>(
+/// Lazily extract a list of `LintDirective`s from `attrs`,
+/// performing a validation as we go,
+/// including validating the attributes and marking them as used.
+crate fn extract_lint_directives<'a>(
     sess: &'a Session,
     attrs: &'a [ast::Attribute],
 ) -> impl 'a + Iterator<Item = LintDirective> {
@@ -228,19 +237,18 @@ impl<'s> LintLevelsBuilder<'s> {
     ///
     /// This function will perform a number of tasks:
     ///
-    /// * It'll validate all lint-related attributes in `attrs`
-    /// * It'll mark all lint-related attributes as used
     /// * Lint levels will be updated based on the attributes provided
     /// * Lint attributes are validated, e.g., a #[forbid] can't be switched to
     ///   #[allow]
     ///
     /// Don't forget to call `pop`!
-    pub fn push(&mut self, attrs: &[ast::Attribute], store: &LintStore) -> BuilderPush {
+    crate fn push(
+        &mut self,
+        directives: impl IntoIterator<Item = LintDirective>,
+        store: &LintStore,
+    ) -> BuilderPush {
         let mut specs = FxHashMap::default();
-        let sess = self.sess;
-        for LintDirective { name, tool_name, reason, level, span } in
-            extract_lint_directives(sess, attrs)
-        {
+        for LintDirective { name, tool_name, reason, level, span } in directives {
             match store.check_lint_name(&name.as_str(), tool_name) {
                 CheckLintNameResult::Ok(ids) => {
                     let src = LintSource::Node(name, span, reason);
@@ -261,7 +269,7 @@ impl<'s> LintLevelsBuilder<'s> {
                         Err((Some(ids), new_lint_name)) => {
                             let lint = builtin::RENAMED_AND_REMOVED_LINTS;
                             let (lvl, src) =
-                                self.sets.get_lint_level(lint, self.cur, Some(&specs), &sess);
+                                self.sets.get_lint_level(lint, self.cur, Some(&specs), &self.sess);
                             struct_lint_level(
                                 self.sess,
                                 lint,
@@ -306,7 +314,7 @@ impl<'s> LintLevelsBuilder<'s> {
                 CheckLintNameResult::Warning(msg, renamed) => {
                     let lint = builtin::RENAMED_AND_REMOVED_LINTS;
                     let (level, src) =
-                        self.sets.get_lint_level(lint, self.cur, Some(&specs), &sess);
+                        self.sets.get_lint_level(lint, self.cur, Some(&specs), &self.sess);
                     struct_lint_level(self.sess, lint, level, src, Some(span.into()), |lint| {
                         let mut err = lint.build(&msg);
                         if let Some(new_name) = renamed {
@@ -436,7 +444,7 @@ impl LintLevelMapBuilder<'_, '_> {
     where
         F: FnOnce(&mut Self),
     {
-        let push = self.levels.push(attrs, self.store);
+        let push = self.levels.push(extract_lint_directives(self.tcx.sess, attrs), self.store);
         if push.changed {
             self.levels.register_id(id);
         }
