@@ -130,6 +130,55 @@ fn extract_tool_name(sess: &Session, meta_item: &ast::MetaItem) -> Option<Option
     }
 }
 
+struct LintDirective {
+    level: Level,
+    name: Symbol,
+    span: Span,
+    reason: Option<Symbol>,
+    tool_name: Option<Symbol>,
+}
+
+fn extract_lint_directives(sess: &Session, attrs: &[ast::Attribute]) -> Vec<LintDirective> {
+    let mut directives = Vec::new();
+    for attr in attrs {
+        let level = match Level::from_symbol(attr.name_or_empty()) {
+            None => continue,
+            Some(lvl) => lvl,
+        };
+
+        let meta = unwrap_or!(attr.meta(), continue);
+        attr::mark_used(attr);
+
+        let mut metas = unwrap_or!(meta.meta_item_list(), continue);
+
+        if metas.is_empty() {
+            // FIXME (#55112): issue unused-attributes lint for `#[level()]`
+            continue;
+        }
+
+        // Before processing the lint names, look for a reason (RFC 2383)
+        // at the end.
+        let reason = extract_lint_reason(sess, &mut metas);
+
+        for li in metas {
+            let meta_item = match li.meta_item() {
+                Some(meta_item) if meta_item.is_word() => meta_item,
+                _ => {
+                    error_non_word_lint_attr(sess, li);
+                    continue;
+                }
+            };
+            let tool_name = match extract_tool_name(sess, meta_item) {
+                Some(tn) => tn,
+                None => continue,
+            };
+            let name = meta_item.path.segments.last().expect("empty lint name").ident.name;
+            directives.push(LintDirective { level, name, tool_name, reason, span: li.span() });
+        }
+    }
+    directives
+}
+
 impl<'s> LintLevelsBuilder<'s> {
     pub fn new(sess: &'s Session, warn_about_weird_lints: bool, store: &LintStore) -> Self {
         let mut builder = LintLevelsBuilder {
@@ -187,156 +236,104 @@ impl<'s> LintLevelsBuilder<'s> {
     pub fn push(&mut self, attrs: &[ast::Attribute], store: &LintStore) -> BuilderPush {
         let mut specs = FxHashMap::default();
         let sess = self.sess;
-        for attr in attrs {
-            let level = match Level::from_symbol(attr.name_or_empty()) {
-                None => continue,
-                Some(lvl) => lvl,
-            };
-
-            let meta = unwrap_or!(attr.meta(), continue);
-            attr::mark_used(attr);
-
-            let mut metas = unwrap_or!(meta.meta_item_list(), continue);
-
-            if metas.is_empty() {
-                // FIXME (#55112): issue unused-attributes lint for `#[level()]`
-                continue;
-            }
-
-            // Before processing the lint names, look for a reason (RFC 2383)
-            // at the end.
-            let reason = extract_lint_reason(sess, &mut metas);
-
-            for li in metas {
-                let meta_item = match li.meta_item() {
-                    Some(meta_item) if meta_item.is_word() => meta_item,
-                    _ => {
-                        error_non_word_lint_attr(sess, li);
-                        continue;
+        for LintDirective { name, tool_name, reason, level, span } in
+            extract_lint_directives(sess, attrs)
+        {
+            match store.check_lint_name(&name.as_str(), tool_name) {
+                CheckLintNameResult::Ok(ids) => {
+                    let src = LintSource::Node(name, span, reason);
+                    for id in ids {
+                        specs.insert(*id, (level, src));
                     }
-                };
-                let tool_name = match extract_tool_name(sess, meta_item) {
-                    Some(tn) => tn,
-                    None => continue,
-                };
-                let name = meta_item.path.segments.last().expect("empty lint name").ident.name;
-                match store.check_lint_name(&name.as_str(), tool_name) {
-                    CheckLintNameResult::Ok(ids) => {
-                        let src = LintSource::Node(name, li.span(), reason);
-                        for id in ids {
-                            specs.insert(*id, (level, src));
-                        }
-                    }
+                }
 
-                    CheckLintNameResult::Tool(result) => {
-                        match result {
-                            Ok(ids) => {
-                                let complete_name = &format!("{}::{}", tool_name.unwrap(), name);
-                                let src = LintSource::Node(
-                                    Symbol::intern(complete_name),
-                                    li.span(),
-                                    reason,
-                                );
-                                for id in ids {
-                                    specs.insert(*id, (level, src));
-                                }
+                CheckLintNameResult::Tool(result) => {
+                    match result {
+                        Ok(ids) => {
+                            let complete_name = &format!("{}::{}", tool_name.unwrap(), name);
+                            let src = LintSource::Node(Symbol::intern(complete_name), span, reason);
+                            for id in ids {
+                                specs.insert(*id, (level, src));
                             }
-                            Err((Some(ids), new_lint_name)) => {
-                                let lint = builtin::RENAMED_AND_REMOVED_LINTS;
-                                let (lvl, src) =
-                                    self.sets.get_lint_level(lint, self.cur, Some(&specs), &sess);
-                                struct_lint_level(
-                                    self.sess,
-                                    lint,
-                                    lvl,
-                                    src,
-                                    Some(li.span().into()),
-                                    |lint| {
-                                        let msg = format!(
-                                            "lint name `{}` is deprecated \
+                        }
+                        Err((Some(ids), new_lint_name)) => {
+                            let lint = builtin::RENAMED_AND_REMOVED_LINTS;
+                            let (lvl, src) =
+                                self.sets.get_lint_level(lint, self.cur, Some(&specs), &sess);
+                            struct_lint_level(
+                                self.sess,
+                                lint,
+                                lvl,
+                                src,
+                                Some(span.into()),
+                                |lint| {
+                                    let msg = format!(
+                                        "lint name `{}` is deprecated \
                                              and may not have an effect in the future. \
                                              Also `cfg_attr(cargo-clippy)` won't be necessary anymore",
-                                            name
-                                        );
-                                        lint.build(&msg)
-                                            .span_suggestion(
-                                                li.span(),
-                                                "change it to",
-                                                new_lint_name.to_string(),
-                                                Applicability::MachineApplicable,
-                                            )
-                                            .emit();
-                                    },
-                                );
+                                        name
+                                    );
+                                    lint.build(&msg)
+                                        .span_suggestion(
+                                            span,
+                                            "change it to",
+                                            new_lint_name.to_string(),
+                                            Applicability::MachineApplicable,
+                                        )
+                                        .emit();
+                                },
+                            );
 
-                                let src = LintSource::Node(
-                                    Symbol::intern(&new_lint_name),
-                                    li.span(),
-                                    reason,
-                                );
-                                for id in ids {
-                                    specs.insert(*id, (level, src));
-                                }
-                            }
-                            Err((None, _)) => {
-                                // If Tool(Err(None, _)) is returned, then either the lint does not
-                                // exist in the tool or the code was not compiled with the tool and
-                                // therefore the lint was never added to the `LintStore`. To detect
-                                // this is the responsibility of the lint tool.
+                            let src =
+                                LintSource::Node(Symbol::intern(&new_lint_name), span, reason);
+                            for id in ids {
+                                specs.insert(*id, (level, src));
                             }
                         }
+                        Err((None, _)) => {
+                            // If Tool(Err(None, _)) is returned, then either the lint does not
+                            // exist in the tool or the code was not compiled with the tool and
+                            // therefore the lint was never added to the `LintStore`. To detect
+                            // this is the responsibility of the lint tool.
+                        }
                     }
+                }
 
-                    _ if !self.warn_about_weird_lints => {}
+                _ if !self.warn_about_weird_lints => {}
 
-                    CheckLintNameResult::Warning(msg, renamed) => {
-                        let lint = builtin::RENAMED_AND_REMOVED_LINTS;
-                        let (level, src) =
-                            self.sets.get_lint_level(lint, self.cur, Some(&specs), &sess);
-                        struct_lint_level(
-                            self.sess,
-                            lint,
-                            level,
-                            src,
-                            Some(li.span().into()),
-                            |lint| {
-                                let mut err = lint.build(&msg);
-                                if let Some(new_name) = renamed {
-                                    err.span_suggestion(
-                                        li.span(),
-                                        "use the new name",
-                                        new_name,
-                                        Applicability::MachineApplicable,
-                                    );
-                                }
-                                err.emit();
-                            },
-                        );
-                    }
-                    CheckLintNameResult::NoLint(suggestion) => {
-                        let lint = builtin::UNKNOWN_LINTS;
-                        let (level, src) =
-                            self.sets.get_lint_level(lint, self.cur, Some(&specs), self.sess);
-                        struct_lint_level(
-                            self.sess,
-                            lint,
-                            level,
-                            src,
-                            Some(li.span().into()),
-                            |lint| {
-                                let mut db = lint.build(&format!("unknown lint: `{}`", name));
-                                if let Some(suggestion) = suggestion {
-                                    db.span_suggestion(
-                                        li.span(),
-                                        "did you mean",
-                                        suggestion.to_string(),
-                                        Applicability::MachineApplicable,
-                                    );
-                                }
-                                db.emit();
-                            },
-                        );
-                    }
+                CheckLintNameResult::Warning(msg, renamed) => {
+                    let lint = builtin::RENAMED_AND_REMOVED_LINTS;
+                    let (level, src) =
+                        self.sets.get_lint_level(lint, self.cur, Some(&specs), &sess);
+                    struct_lint_level(self.sess, lint, level, src, Some(span.into()), |lint| {
+                        let mut err = lint.build(&msg);
+                        if let Some(new_name) = renamed {
+                            err.span_suggestion(
+                                span,
+                                "use the new name",
+                                new_name,
+                                Applicability::MachineApplicable,
+                            );
+                        }
+                        err.emit();
+                    });
+                }
+                CheckLintNameResult::NoLint(suggestion) => {
+                    let lint = builtin::UNKNOWN_LINTS;
+                    let (level, src) =
+                        self.sets.get_lint_level(lint, self.cur, Some(&specs), self.sess);
+                    struct_lint_level(self.sess, lint, level, src, Some(span.into()), |lint| {
+                        let mut db = lint.build(&format!("unknown lint: `{}`", name));
+                        if let Some(suggestion) = suggestion {
+                            db.span_suggestion(
+                                span,
+                                "did you mean",
+                                suggestion.to_string(),
+                                Applicability::MachineApplicable,
+                            );
+                        }
+                        db.emit();
+                    });
                 }
             }
         }
