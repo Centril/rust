@@ -58,40 +58,35 @@ fn bad_attr(sess: &Session, span: Span) -> DiagnosticBuilder<'_> {
 }
 
 fn extract_lint_reason(sess: &Session, metas: &mut &[ast::NestedMetaItem]) -> Option<Symbol> {
-    if let Some(item) = metas[metas.len() - 1].meta_item() {
-        match item.kind {
-            ast::MetaItemKind::Word => {} // actual lint names handled later
-            ast::MetaItemKind::NameValue(ref name_value) => {
-                if item.path == sym::reason {
-                    // found reason, reslice meta list to exclude it
-                    *metas = &metas[0..metas.len() - 1];
-                    // FIXME (#55112): issue unused-attributes lint if we thereby
-                    // don't have any lint names (`#[level(reason = "foo")]`)
-                    if let ast::LitKind::Str(rationale, _) = name_value.kind {
-                        if !sess.features_untracked().lint_reasons {
-                            feature_err(
-                                &sess.parse_sess,
-                                sym::lint_reasons,
-                                item.span,
-                                "lint reasons are experimental",
-                            )
-                            .emit();
-                        }
-                        return Some(rationale);
-                    } else {
-                        bad_attr(sess, name_value.span)
-                            .span_label(name_value.span, "reason must be a string literal")
-                            .emit();
-                    }
-                } else {
-                    bad_attr(sess, item.span)
-                        .span_label(item.span, "bad attribute argument")
-                        .emit();
+    match metas.last()?.meta_item()? {
+        // Actual lint names handled later.
+        ast::MetaItem { kind: ast::MetaItemKind::Word, .. } => {}
+        ast::MetaItem { kind: ast::MetaItemKind::NameValue(name_value), path, span }
+            if path == &sym::reason =>
+        {
+            // found reason, reslice meta list to exclude it
+            *metas = &metas[0..metas.len() - 1];
+            // FIXME (#55112): issue unused-attributes lint if we thereby
+            // don't have any lint names (`#[level(reason = "foo")]`)
+            if let ast::LitKind::Str(rationale, _) = name_value.kind {
+                if !sess.features_untracked().lint_reasons {
+                    feature_err(
+                        &sess.parse_sess,
+                        sym::lint_reasons,
+                        *span,
+                        "lint reasons are experimental",
+                    )
+                    .emit();
                 }
+                return Some(rationale);
+            } else {
+                bad_attr(sess, name_value.span)
+                    .span_label(name_value.span, "reason must be a string literal")
+                    .emit();
             }
-            ast::MetaItemKind::List(_) => {
-                bad_attr(sess, item.span).span_label(item.span, "bad attribute argument").emit();
-            }
+        }
+        ast::MetaItem { span, .. } => {
+            bad_attr(sess, *span).span_label(*span, "bad attribute argument").emit();
         }
     }
     None
