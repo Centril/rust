@@ -92,6 +92,24 @@ fn extract_lint_reason(sess: &Session, metas: &mut &[ast::NestedMetaItem]) -> Op
     None
 }
 
+fn error_non_word_lint_attr(sess: &Session, li: &ast::NestedMetaItem) {
+    let sp = li.span();
+    let mut err = bad_attr(sess, sp);
+    let mut add_label = true;
+    if let Some(item) = li.meta_item() {
+        if let ast::MetaItemKind::NameValue(_) = item.kind {
+            if item.path == sym::reason {
+                err.span_label(sp, "reason in lint attribute must come last");
+                add_label = false;
+            }
+        }
+    }
+    if add_label {
+        err.span_label(sp, "bad attribute argument");
+    }
+    err.emit();
+}
+
 impl<'s> LintLevelsBuilder<'s> {
     pub fn new(sess: &'s Session, warn_about_weird_lints: bool, store: &LintStore) -> Self {
         let mut builder = LintLevelsBuilder {
@@ -173,21 +191,7 @@ impl<'s> LintLevelsBuilder<'s> {
                 let meta_item = match li.meta_item() {
                     Some(meta_item) if meta_item.is_word() => meta_item,
                     _ => {
-                        let sp = li.span();
-                        let mut err = bad_attr(sess, sp);
-                        let mut add_label = true;
-                        if let Some(item) = li.meta_item() {
-                            if let ast::MetaItemKind::NameValue(_) = item.kind {
-                                if item.path == sym::reason {
-                                    err.span_label(sp, "reason in lint attribute must come last");
-                                    add_label = false;
-                                }
-                            }
-                        }
-                        if add_label {
-                            err.span_label(sp, "bad attribute argument");
-                        }
-                        err.emit();
+                        error_non_word_lint_attr(sess, li);
                         continue;
                     }
                 };
