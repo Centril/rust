@@ -15,10 +15,10 @@
 //! for all lint attributes.
 
 use crate::context::{EarlyContext, LintContext, LintStore};
-use crate::levels::extract_lint_directives;
 use crate::passes::{EarlyLintPass, EarlyLintPassObject};
 use rustc_ast::ast;
 use rustc_ast::visit as ast_visit;
+use rustc_ast_lowering::attr::extract_lint_directives;
 use rustc_session::lint::{BufferedEarlyLint, LintBuffer, LintPass};
 use rustc_session::Session;
 use rustc_span::Span;

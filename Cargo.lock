@@ -3923,6 +3923,7 @@ version = "0.0.0"
 dependencies = [
  "log",
  "rustc_ast",
+ "rustc_ast_lowering",
  "rustc_ast_pretty",
  "rustc_attr",
  "rustc_data_structures",

@@ -39,7 +39,6 @@
 
 use rustc_ast::ast;
 use rustc_ast::ast::*;
-use rustc_ast::attr;
 use rustc_ast::node_id::NodeMap;
 use rustc_ast::token::{self, Nonterminal, Token};
 use rustc_ast::tokenstream::{TokenStream, TokenTree};
@@ -78,6 +77,7 @@ macro_rules! arena_vec {
     });
 }
 
+pub mod attr;
 mod expr;
 mod item;
 mod pat;
@@ -2141,7 +2141,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
             hir_id: self.lower_node_id(param.id),
             name,
             span: param.ident.span,
-            pure_wrt_drop: attr::contains_name(&param.attrs, sym::may_dangle),
+            pure_wrt_drop: rustc_ast::attr::contains_name(&param.attrs, sym::may_dangle),
             attrs: self.lower_attrs(&param.attrs),
             bounds: self.arena.alloc_from_iter(bounds),
             kind,

@@ -52,6 +52,20 @@ impl Level {
     }
 }
 
+/// Semantic representation of `#[level(...)]` lint control attributes.
+pub struct LintDirective {
+    /// The level for the lint we've been directive to use.
+    pub level: Level,
+    /// Name of the lint to control, i.e. the `name` in `#![allow(name)]`.
+    pub name: Symbol,
+    /// Where the control attribute was introduced.
+    pub span: Span,
+    /// Optionally, a reason for this lint control, per RFC 2383.
+    pub reason: Option<Symbol>,
+    /// Optionally, a tool name, e.g., `clippy` in `clippy::foo_lint`.
+    pub tool_name: Option<Symbol>,
+}
+
 /// Specification of a single lint.
 #[derive(Copy, Clone, Debug)]
 pub struct Lint {
