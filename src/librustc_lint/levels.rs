@@ -110,6 +110,26 @@ fn error_non_word_lint_attr(sess: &Session, li: &ast::NestedMetaItem) {
     err.emit();
 }
 
+fn extract_tool_name(sess: &Session, meta_item: &ast::MetaItem) -> Option<Option<Symbol>> {
+    match &*meta_item.path.segments {
+        [ast::PathSegment { ident, .. }, ..] if attr::is_known_lint_tool(*ident) => {
+            Some(Some(ident.name))
+        }
+        [ast::PathSegment { ident, .. }, ..] => {
+            struct_span_err!(
+                sess,
+                ident.span,
+                E0710,
+                "an unknown tool name found in scoped lint: `{}`",
+                pprust::path_to_string(&meta_item.path),
+            )
+            .emit();
+            None
+        }
+        [] => Some(None),
+    }
+}
+
 impl<'s> LintLevelsBuilder<'s> {
     pub fn new(sess: &'s Session, warn_about_weird_lints: bool, store: &LintStore) -> Self {
         let mut builder = LintLevelsBuilder {
@@ -195,23 +215,9 @@ impl<'s> LintLevelsBuilder<'s> {
                         continue;
                     }
                 };
-                let tool_name = if meta_item.path.segments.len() > 1 {
-                    let tool_ident = meta_item.path.segments[0].ident;
-                    if !attr::is_known_lint_tool(tool_ident) {
-                        struct_span_err!(
-                            sess,
-                            tool_ident.span,
-                            E0710,
-                            "an unknown tool name found in scoped lint: `{}`",
-                            pprust::path_to_string(&meta_item.path),
-                        )
-                        .emit();
-                        continue;
-                    }
-
-                    Some(tool_ident.name)
-                } else {
-                    None
+                let tool_name = match extract_tool_name(sess, meta_item) {
+                    Some(tn) => tn,
+                    None => continue,
                 };
                 let name = meta_item.path.segments.last().expect("empty lint name").ident.name;
                 match store.check_lint_name(&name.as_str(), tool_name) {
