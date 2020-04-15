@@ -461,7 +461,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
         self.lower_lint_directives(hir_id, &arm.attrs);
         hir::Arm {
             hir_id,
-            attrs: self.lower_attrs(&arm.attrs),
             pat: self.lower_pat(&arm.pat),
             guard: match arm.guard {
                 Some(ref x) => Some(hir::Guard::If(self.lower_expr(x))),
@@ -1453,13 +1452,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
     }
 
     fn arm(&mut self, pat: &'hir hir::Pat<'hir>, expr: &'hir hir::Expr<'hir>) -> hir::Arm<'hir> {
-        hir::Arm {
-            hir_id: self.next_id(),
-            attrs: &[],
-            pat,
-            guard: None,
-            span: expr.span,
-            body: expr,
-        }
+        hir::Arm { hir_id: self.next_id(), pat, guard: None, span: expr.span, body: expr }
     }
 }

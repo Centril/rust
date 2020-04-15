@@ -1176,7 +1176,6 @@ pub fn walk_arm<'v, V: Visitor<'v>>(visitor: &mut V, arm: &'v Arm<'v>) {
         }
     }
     visitor.visit_expr(&arm.body);
-    walk_list!(visitor, visit_attribute, arm.attrs);
 }
 
 pub fn walk_vis<'v, V: Visitor<'v>>(visitor: &mut V, vis: &'v Visibility<'v>) {

@@ -1835,15 +1835,9 @@ impl<'a> State<'a> {
     }
 
     pub fn print_arm(&mut self, arm: &hir::Arm<'_>) {
-        // I have no idea why this check is necessary, but here it
-        // is :(
-        if arm.attrs.is_empty() {
-            self.s.space();
-        }
         self.cbox(INDENT_UNIT);
         self.ann.pre(self, AnnNode::Arm(arm));
         self.ibox(0);
-        self.print_outer_attributes(&arm.attrs);
         self.print_pat(&arm.pat);
         self.s.space();
         if let Some(ref g) = arm.guard {

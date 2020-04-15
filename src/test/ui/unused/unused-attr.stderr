@@ -47,12 +47,6 @@ LL | #[rustc_dummy]
    | ^^^^^^^^^^^^^^
 
 error: unused attribute
-  --> $DIR/unused-attr.rs:30:9
-   |
-LL |         #[rustc_dummy]
-   |         ^^^^^^^^^^^^^^
-
-error: unused attribute
   --> $DIR/unused-attr.rs:27:1
    |
 LL | #[rustc_dummy]
@@ -94,5 +88,5 @@ error: unused attribute
 LL | #![rustc_dummy]
    | ^^^^^^^^^^^^^^^
 
-error: aborting due to 15 previous errors
+error: aborting due to 14 previous errors
 

@@ -827,7 +827,7 @@ impl<'hir> Map<'hir> {
             Some(Node::Field(ref f)) => Some(&f.attrs[..]),
             Some(Node::Expr(ref e)) => Some(&*e.attrs),
             Some(Node::Stmt(ref s)) => Some(s.kind.attrs()),
-            Some(Node::Arm(ref a)) => Some(&*a.attrs),
+            Some(Node::Arm(_)) => unreachable!("Map::attrs, `Arm` should be unreachable"),
             Some(Node::GenericParam(param)) => Some(&param.attrs[..]),
             // Unit/tuple structs/variants take the attributes straight from
             // the struct/variant definition.
