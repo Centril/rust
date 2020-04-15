@@ -2560,7 +2560,7 @@ impl<'tcx> TyCtxt<'tcx> {
                 return bound;
             }
 
-            if hir.attrs(id).iter().any(|attr| Level::from_symbol(attr.name_or_empty()).is_some()) {
+            if hir.krate().lint_directives.get(&id).map_or(false, |d| !d.is_empty()) {
                 return id;
             }
             let next = hir.get_parent_node(id);

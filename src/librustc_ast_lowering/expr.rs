@@ -1,7 +1,6 @@
 use super::{ImplTraitContext, LoweringContext, ParamMode, ParenthesizedGenericArgs};
 
 use rustc_ast::ast::*;
-use rustc_ast::attr;
 use rustc_ast::ptr::P as AstP;
 use rustc_data_structures::thin_vec::ThinVec;
 use rustc_errors::struct_span_err;
@@ -184,6 +183,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 let mut attrs = e.attrs.clone();
                 attrs.extend::<Vec<_>>(ex.attrs.into());
                 ex.attrs = attrs;
+                self.lower_lint_directives(ex.hir_id, &ex.attrs);
                 return ex;
             }
 
@@ -194,18 +194,19 @@ impl<'hir> LoweringContext<'_, 'hir> {
             // Desugar `ExprForLoop`
             // from: `[opt_ident]: for <pat> in <head> <body>`
             ExprKind::ForLoop(ref pat, ref head, ref body, opt_label) => {
-                return self.lower_expr_for(e, pat, head, body, opt_label);
+                let expr = self.lower_expr_for(e, pat, head, body, opt_label);
+                self.lower_lint_directives(expr.hir_id, &e.attrs);
+                return expr;
             }
             ExprKind::Try(ref sub_expr) => self.lower_expr_try(e.span, sub_expr),
             ExprKind::MacCall(_) => panic!("Shouldn't exist here"),
         };
 
-        hir::Expr {
-            hir_id: self.lower_node_id(e.id),
-            kind,
-            span: e.span,
-            attrs: e.attrs.iter().map(|a| self.lower_attr(a)).collect::<Vec<_>>().into(),
-        }
+        let hir_id = self.lower_node_id(e.id);
+        self.lower_lint_directives(hir_id, &e.attrs);
+        let attrs = e.attrs.iter().map(|a| self.lower_attr(a)).collect::<Vec<_>>().into();
+
+        hir::Expr { hir_id, kind, span: e.span, attrs }
     }
 
     fn lower_unop(&mut self, u: UnOp) -> hir::UnOp {
@@ -456,8 +457,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
     }
 
     fn lower_arm(&mut self, arm: &Arm) -> hir::Arm<'hir> {
+        let hir_id = self.next_id();
+        self.lower_lint_directives(hir_id, &arm.attrs);
         hir::Arm {
-            hir_id: self.next_id(),
+            hir_id,
             attrs: self.lower_attrs(&arm.attrs),
             pat: self.lower_pat(&arm.pat),
             guard: match arm.guard {
@@ -1100,7 +1103,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         let next_expr = self.expr_ident(desugared_span, next_ident, next_pat_hid);
 
         // `let mut __next`
-        let next_let = self.stmt_let_pat(
+        let (next_let, _) = self.stmt_let_pat(
             ThinVec::new(),
             desugared_span,
             None,
@@ -1110,7 +1113,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
         // `let <pat> = __next`
         let pat = self.lower_pat(pat);
-        let pat_let = self.stmt_let_pat(
+        let (pat_let, _) = self.stmt_let_pat(
             ThinVec::new(),
             desugared_span,
             Some(next_expr),
@@ -1195,29 +1198,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
             self.expr_call_std_path(unstable_span, path, arena_vec![self; sub_expr])
         };
 
-        // `#[allow(unreachable_code)]`
-        let attr = {
-            // `allow(unreachable_code)`
-            let allow = {
-                let allow_ident = Ident::new(sym::allow, span);
-                let uc_ident = Ident::new(sym::unreachable_code, span);
-                let uc_nested = attr::mk_nested_word_item(uc_ident);
-                attr::mk_list_item(allow_ident, vec![uc_nested])
-            };
-            attr::mk_attr_outer(allow)
-        };
-        let attrs = vec![attr];
-
         // `Ok(val) => #[allow(unreachable_code)] val,`
         let ok_arm = {
             let val_ident = Ident::with_dummy_span(sym::val);
             let (val_pat, val_pat_nid) = self.pat_ident(span, val_ident);
-            let val_expr = self.arena.alloc(self.expr_ident_with_attrs(
-                span,
-                val_ident,
-                val_pat_nid,
-                ThinVec::from(attrs.clone()),
-            ));
+            let val_expr = self.expr_ident(span, val_ident, val_pat_nid);
+            // `#[allow(unreachable_code)]`, but we use `LintDirective` directly.
+            self.allow_lint_on(val_expr.hir_id, sym::unreachable_code, span);
             let ok_pat = self.pat_ok(span, val_pat);
             self.arm(ok_pat, val_expr)
         };
@@ -1234,25 +1221,21 @@ impl<'hir> LoweringContext<'_, 'hir> {
             };
             let from_err_expr =
                 self.wrap_in_try_constructor(sym::from_error, unstable_span, from_expr, try_span);
-            let thin_attrs = ThinVec::from(attrs);
             let catch_scope = self.catch_scopes.last().copied();
             let ret_expr = if let Some(catch_node) = catch_scope {
                 let target_id = Ok(self.lower_node_id(catch_node));
-                self.arena.alloc(self.expr(
+                let destination = hir::Destination { label: None, target_id };
+                self.expr(
                     try_span,
-                    hir::ExprKind::Break(
-                        hir::Destination { label: None, target_id },
-                        Some(from_err_expr),
-                    ),
-                    thin_attrs,
-                ))
+                    hir::ExprKind::Break(destination, Some(from_err_expr)),
+                    AttrVec::new(),
+                )
             } else {
-                self.arena.alloc(self.expr(
-                    try_span,
-                    hir::ExprKind::Ret(Some(from_err_expr)),
-                    thin_attrs,
-                ))
+                self.expr(try_span, hir::ExprKind::Ret(Some(from_err_expr)), AttrVec::new())
             };
+            let ret_expr = self.arena.alloc(ret_expr);
+            // `#[allow(unreachable_code)]`, but we use `LintDirective` directly.
+            self.allow_lint_on(ret_expr.hir_id, sym::unreachable_code, span);
 
             let err_pat = self.pat_err(try_span, err_local);
             self.arm(err_pat, ret_expr)

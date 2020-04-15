@@ -8,6 +8,7 @@ pub mod builtin;
 
 /// Setting for how to handle a lint.
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+#[derive(RustcEncodable, RustcDecodable)]
 pub enum Level {
     Allow,
     Warn,
@@ -52,8 +53,9 @@ impl Level {
 }
 
 /// Semantic representation of `#[level(...)]` lint control attributes.
+#[derive(RustcEncodable, RustcDecodable, Copy, Clone, Debug)]
 pub struct LintDirective {
-    /// The level for the lint we've been directive to use.
+    /// The level we've been directed to use for the lint with `name`.
     pub level: Level,
     /// Name of the lint to control, i.e. the `name` in `#![allow(name)]`.
     pub name: Symbol,

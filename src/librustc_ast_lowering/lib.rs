@@ -34,19 +34,20 @@
 #![feature(crate_visibility_modifier)]
 #![feature(marker_trait_attr)]
 #![feature(specialization)]
+#![feature(option_unwrap_none)]
 #![feature(or_patterns)]
 #![recursion_limit = "256"]
 
 use rustc_ast::ast;
 use rustc_ast::ast::*;
 use rustc_ast::node_id::NodeMap;
-use rustc_ast::token::{self, Nonterminal, Token};
-use rustc_ast::tokenstream::{TokenStream, TokenTree};
+use rustc_ast::token::Nonterminal;
+use rustc_ast::tokenstream::TokenStream;
 use rustc_ast::visit::{self, AssocCtxt, Visitor};
 use rustc_ast::walk_list;
 use rustc_ast_pretty::pprust;
 use rustc_data_structures::captures::Captures;
-use rustc_data_structures::fx::FxHashSet;
+use rustc_data_structures::fx::{FxHashSet, FxIndexMap};
 use rustc_data_structures::sync::Lrc;
 use rustc_errors::struct_span_err;
 use rustc_hir as hir;
@@ -115,6 +116,8 @@ struct LoweringContext<'a, 'hir: 'a> {
     trait_impls: BTreeMap<DefId, Vec<hir::HirId>>,
 
     modules: BTreeMap<hir::HirId, hir::ModuleItems>,
+
+    lint_directives: hir::LintDirectivesMap,
 
     generator_kind: Option<hir::GeneratorKind>,
 
@@ -280,6 +283,7 @@ pub fn lower_crate<'a, 'hir>(
         bodies: BTreeMap::new(),
         trait_impls: BTreeMap::new(),
         modules: BTreeMap::new(),
+        lint_directives: FxIndexMap::default(),
         exported_macros: Vec::new(),
         non_exported_macro_attrs: Vec::new(),
         catch_scopes: Vec::new(),
@@ -528,6 +532,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
         visit::walk_crate(&mut item::ItemLowerer { lctx: &mut self }, c);
 
         let module = self.lower_mod(&c.module);
+        self.lower_lint_directives(hir::CRATE_HIR_ID, &c.attrs);
         let attrs = self.lower_attrs(&c.attrs);
         let body_ids = body_ids(&self.bodies);
         let proc_macros = c.proc_macros.iter().map(|id| self.node_id_to_hir_id[*id]).collect();
@@ -545,6 +550,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
             body_ids,
             trait_impls: self.trait_impls,
             modules: self.modules,
+            lint_directives: self.lint_directives,
             proc_macros,
         }
     }
@@ -926,60 +932,6 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
         self.is_in_loop_condition = was_in_loop_condition;
 
         ret
-    }
-
-    fn lower_attrs(&mut self, attrs: &[Attribute]) -> &'hir [Attribute] {
-        self.arena.alloc_from_iter(attrs.iter().map(|a| self.lower_attr(a)))
-    }
-
-    fn lower_attr(&mut self, attr: &Attribute) -> Attribute {
-        // Note that we explicitly do not walk the path. Since we don't really
-        // lower attributes (we use the AST version) there is nowhere to keep
-        // the `HirId`s. We don't actually need HIR version of attributes anyway.
-        let kind = match attr.kind {
-            AttrKind::Normal(ref item) => AttrKind::Normal(AttrItem {
-                path: item.path.clone(),
-                args: self.lower_mac_args(&item.args),
-            }),
-            AttrKind::DocComment(comment) => AttrKind::DocComment(comment),
-        };
-
-        Attribute { kind, id: attr.id, style: attr.style, span: attr.span }
-    }
-
-    fn lower_mac_args(&mut self, args: &MacArgs) -> MacArgs {
-        match *args {
-            MacArgs::Empty => MacArgs::Empty,
-            MacArgs::Delimited(dspan, delim, ref tokens) => {
-                MacArgs::Delimited(dspan, delim, self.lower_token_stream(tokens.clone()))
-            }
-            MacArgs::Eq(eq_span, ref tokens) => {
-                MacArgs::Eq(eq_span, self.lower_token_stream(tokens.clone()))
-            }
-        }
-    }
-
-    fn lower_token_stream(&mut self, tokens: TokenStream) -> TokenStream {
-        tokens.into_trees().flat_map(|tree| self.lower_token_tree(tree).into_trees()).collect()
-    }
-
-    fn lower_token_tree(&mut self, tree: TokenTree) -> TokenStream {
-        match tree {
-            TokenTree::Token(token) => self.lower_token(token),
-            TokenTree::Delimited(span, delim, tts) => {
-                TokenTree::Delimited(span, delim, self.lower_token_stream(tts)).into()
-            }
-        }
-    }
-
-    fn lower_token(&mut self, token: Token) -> TokenStream {
-        match token.kind {
-            token::Interpolated(nt) => {
-                let tts = (self.nt_to_tokenstream)(&nt, &self.sess.parse_sess, token.span);
-                self.lower_token_stream(tts)
-            }
-            _ => TokenTree::Token(token).into(),
-        }
     }
 
     /// Given an associated type constraint like one of these:
@@ -1631,9 +1583,11 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
             )
         });
         let init = l.init.as_ref().map(|e| self.lower_expr(e));
+        let hir_id = self.lower_node_id(l.id);
+        self.lower_lint_directives(hir_id, &l.attrs);
         (
             hir::Local {
-                hir_id: self.lower_node_id(l.id),
+                hir_id,
                 ty,
                 pat: self.lower_pat(&l.pat),
                 init,
@@ -2137,8 +2091,9 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
             }
         };
 
+        let hir_id = self.lower_node_id(param.id);
         hir::GenericParam {
-            hir_id: self.lower_node_id(param.id),
+            hir_id,
             name,
             span: param.ident.span,
             pure_wrt_drop: rustc_ast::attr::contains_name(&param.attrs, sym::may_dangle),
@@ -2331,9 +2286,11 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
         init: Option<&'hir hir::Expr<'hir>>,
         pat: &'hir hir::Pat<'hir>,
         source: hir::LocalSource,
-    ) -> hir::Stmt<'hir> {
-        let local = hir::Local { attrs, hir_id: self.next_id(), init, pat, source, span, ty: None };
-        self.stmt(span, hir::StmtKind::Local(self.arena.alloc(local)))
+    ) -> (hir::Stmt<'hir>, hir::HirId) {
+        let hir_id = self.next_id();
+        let local = hir::Local { attrs, hir_id, init, pat, source, span, ty: None };
+        let stmt = self.stmt(span, hir::StmtKind::Local(self.arena.alloc(local)));
+        (stmt, hir_id)
     }
 
     fn block_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> &'hir hir::Block<'hir> {

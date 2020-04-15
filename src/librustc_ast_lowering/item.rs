@@ -208,6 +208,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
     pub fn lower_item(&mut self, i: &Item) -> Option<hir::Item<'hir>> {
         let mut ident = i.ident;
         let mut vis = self.lower_visibility(&i.vis, None);
+        let hir_id = self.lower_node_id(i.id);
+        self.lower_lint_directives(hir_id, &i.attrs);
         let attrs = self.lower_attrs(&i.attrs);
 
         if let ItemKind::MacroDef(MacroDef { ref body, macro_rules }) = i.kind {
@@ -228,9 +230,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
             return None;
         }
 
-        let kind = self.lower_item_kind(i.span, i.id, &mut ident, attrs, &mut vis, &i.kind);
+        let kind = self.lower_item_kind(i.span, i.id, &mut ident, hir_id, attrs, &mut vis, &i.kind);
 
-        Some(hir::Item { hir_id: self.lower_node_id(i.id), ident, attrs, kind, vis, span: i.span })
+        Some(hir::Item { hir_id, ident, attrs, kind, vis, span: i.span })
     }
 
     fn lower_item_kind(
@@ -238,6 +240,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         span: Span,
         id: NodeId,
         ident: &mut Ident,
+        hir_id: hir::HirId,
         attrs: &'hir [Attribute],
         vis: &mut hir::Visibility<'hir>,
         i: &ItemKind,
@@ -248,7 +251,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                 // Start with an empty prefix.
                 let prefix = Path { segments: vec![], span: use_tree.span };
 
-                self.lower_use_tree(use_tree, &prefix, id, vis, ident, attrs)
+                self.lower_use_tree(use_tree, &prefix, id, vis, ident, hir_id, attrs)
             }
             ItemKind::Static(ref t, m, ref e) => {
                 let (ty, body_id) = self.lower_const_item(t, span, e.as_deref());
@@ -447,6 +450,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
         (ty, self.lower_const_body(span, body))
     }
 
+    /// Lower the given `use` tree.
+    ///
+    /// Note: The `top_hir_id` is that of the top level `use` item.
     fn lower_use_tree(
         &mut self,
         tree: &UseTree,
@@ -454,6 +460,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
         id: NodeId,
         vis: &mut hir::Visibility<'hir>,
         ident: &mut Ident,
+        top_hir_id: hir::HirId,
         attrs: &'hir [Attribute],
     ) -> hir::ItemKind<'hir> {
         debug!("lower_use_tree(tree={:?})", tree);
@@ -512,6 +519,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                             vis,
                             span,
                         });
+                        this.clone_lint_directives_of(top_hir_id, new_id);
                     });
                 }
 
@@ -570,8 +578,9 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         let mut vis = this.rebuild_vis(&vis);
                         let mut ident = *ident;
 
-                        let kind =
-                            this.lower_use_tree(use_tree, &prefix, id, &mut vis, &mut ident, attrs);
+                        let kind = this.lower_use_tree(
+                            use_tree, &prefix, id, &mut vis, &mut ident, top_hir_id, attrs,
+                        );
 
                         this.insert_item(hir::Item {
                             hir_id: new_hir_id,
@@ -581,6 +590,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                             vis,
                             span: use_tree.span,
                         });
+                        this.clone_lint_directives_of(top_hir_id, new_hir_id);
                     });
                 }
 
@@ -646,8 +656,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     fn lower_foreign_item(&mut self, i: &ForeignItem) -> hir::ForeignItem<'hir> {
         let def_id = self.resolver.definitions().local_def_id(i.id);
+        let hir_id = self.lower_node_id(i.id);
+        self.lower_lint_directives(hir_id, &i.attrs);
         hir::ForeignItem {
-            hir_id: self.lower_node_id(i.id),
+            hir_id,
             ident: i.ident,
             attrs: self.lower_attrs(&i.attrs),
             kind: match i.kind {
@@ -692,11 +704,13 @@ impl<'hir> LoweringContext<'_, 'hir> {
     }
 
     fn lower_variant(&mut self, v: &Variant) -> hir::Variant<'hir> {
+        let id = self.lower_node_id(v.id);
+        self.lower_lint_directives(id, &v.attrs);
         hir::Variant {
+            id,
             attrs: self.lower_attrs(&v.attrs),
             data: self.lower_variant_data(&v.data),
             disr_expr: v.disr_expr.as_ref().map(|e| self.lower_anon_const(e)),
-            id: self.lower_node_id(v.id),
             ident: v.ident,
             span: v.span,
         }
@@ -731,9 +745,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
         } else {
             self.lower_ty(&f.ty, ImplTraitContext::disallowed())
         };
+        let hir_id = self.lower_node_id(f.id);
+        self.lower_lint_directives(hir_id, &f.attrs);
         hir::StructField {
             span: f.span,
-            hir_id: self.lower_node_id(f.id),
+            hir_id,
             ident: match f.ident {
                 Some(ident) => ident,
                 // FIXME(jseyfried): positional field hygiene.
@@ -779,8 +795,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
             AssocItemKind::MacCall(..) => panic!("macro item shouldn't exist at this point"),
         };
 
+        let hir_id = self.lower_node_id(i.id);
+        self.lower_lint_directives(hir_id, &i.attrs);
         hir::TraitItem {
-            hir_id: self.lower_node_id(i.id),
+            hir_id,
             ident: i.ident,
             attrs: self.lower_attrs(&i.attrs),
             generics,
@@ -863,8 +881,10 @@ impl<'hir> LoweringContext<'_, 'hir> {
         // Since `default impl` is not yet implemented, this is always true in impls.
         let has_value = true;
         let (defaultness, _) = self.lower_defaultness(i.kind.defaultness(), has_value);
+        let hir_id = self.lower_node_id(i.id);
+        self.lower_lint_directives(hir_id, &i.attrs);
         hir::ImplItem {
-            hir_id: self.lower_node_id(i.id),
+            hir_id,
             ident: i.ident,
             attrs: self.lower_attrs(&i.attrs),
             generics,
@@ -972,9 +992,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
     }
 
     fn lower_param(&mut self, param: &Param) -> hir::Param<'hir> {
+        let hir_id = self.lower_node_id(param.id);
+        self.lower_lint_directives(hir_id, &param.attrs);
         hir::Param {
+            hir_id,
             attrs: self.lower_attrs(&param.attrs),
-            hir_id: self.lower_node_id(param.id),
             pat: self.lower_pat(&param.pat),
             span: param.span,
         }
@@ -1110,13 +1132,14 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     // `let <pat> = <pat>;`. We re-use the original argument's pattern so that
                     // `HirId`s are densely assigned.
                     let expr = this.expr_ident(desugared_span, ident, new_parameter_id);
-                    let stmt = this.stmt_let_pat(
+                    let (stmt, local_hir_id) = this.stmt_let_pat(
                         stmt_attrs,
                         desugared_span,
                         Some(expr),
                         parameter.pat,
                         hir::LocalSource::AsyncFn,
                     );
+                    this.clone_lint_directives_of(new_parameter.hir_id, local_hir_id);
                     statements.push(stmt);
                 } else {
                     // If this is not the simple case, then we construct two statements:
@@ -1140,7 +1163,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         hir::BindingAnnotation::Mutable,
                     );
                     let move_expr = this.expr_ident(desugared_span, ident, new_parameter_id);
-                    let move_stmt = this.stmt_let_pat(
+                    let (move_stmt, _) = this.stmt_let_pat(
                         AttrVec::new(),
                         desugared_span,
                         Some(move_expr),
@@ -1151,13 +1174,14 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     // Construct the `let <pat> = __argN;` statement. We re-use the original
                     // parameter's pattern so that `HirId`s are densely assigned.
                     let pattern_expr = this.expr_ident(desugared_span, ident, move_id);
-                    let pattern_stmt = this.stmt_let_pat(
+                    let (pattern_stmt, local_hir_id) = this.stmt_let_pat(
                         stmt_attrs,
                         desugared_span,
                         Some(pattern_expr),
                         parameter.pat,
                         hir::LocalSource::AsyncFn,
                     );
+                    this.clone_lint_directives_of(new_parameter.hir_id, local_hir_id);
 
                     statements.push(move_stmt);
                     statements.push(pattern_stmt);

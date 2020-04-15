@@ -9,6 +9,7 @@ name = "rustc_lint_types"
 path = "lib.rs"
 
 [dependencies]
+rustc_ast = { path = "../librustc_ast" }
 rustc_data_structures = { path = "../librustc_data_structures" }
 rustc_span = { path = "../librustc_span" }
-rustc_ast = { path = "../librustc_ast" }
+rustc_serialize = { path = "../libserialize", package = "serialize" }

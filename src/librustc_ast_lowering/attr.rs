@@ -1,11 +1,96 @@
 //! Attribute related logic in lowering.
 
-use rustc_ast::{ast, attr};
+use crate::LoweringContext;
+use rustc_ast::ast::{self, AttrItem, AttrKind, Attribute, MacArgs};
+use rustc_ast::attr;
+use rustc_ast::token::{self, Token};
+use rustc_ast::tokenstream::{TokenStream, TokenTree};
 use rustc_errors::{pluralize, struct_span_err, Applicability, DiagnosticBuilder};
+use rustc_hir as hir;
 use rustc_lint_types::{Level, LintDirective};
 use rustc_session::parse::feature_err;
 use rustc_session::Session;
 use rustc_span::{sym, Span, Symbol};
+
+use smallvec::{smallvec, SmallVec};
+
+impl<'hir> LoweringContext<'_, 'hir> {
+    /// Clones any lint directives on `of` into `clone_into`.
+    crate fn clone_lint_directives_of(&mut self, of: hir::HirId, clone_into: hir::HirId) {
+        // FIXME(Centril): consider arena allocating `directives` instead to avoid cloning.
+        if let Some(directives) = self.lint_directives.get(&of).cloned() {
+            self.lint_directives.insert(clone_into, directives);
+        }
+    }
+
+    /// Equivalent to the user having done `#![allow(name)]` on the node represented by `id`.
+    crate fn allow_lint_on(&mut self, id: hir::HirId, name: Symbol, span: Span) {
+        let dir = LintDirective { level: Level::Allow, name, span, reason: None, tool_name: None };
+        self.lint_directives.insert(id, smallvec![dir]).unwrap_none();
+    }
+
+    /// Lower and extract `#[level(...)]` lint control attributes into a semantic representation.
+    crate fn lower_lint_directives(&mut self, id: hir::HirId, attrs: &[Attribute]) {
+        let directives = extract_lint_directives(self.sess, attrs).collect::<SmallVec<_>>();
+        if !directives.is_empty() {
+            self.lint_directives.insert(id, directives).unwrap_none();
+        }
+    }
+
+    crate fn lower_attrs(&mut self, attrs: &[Attribute]) -> &'hir [Attribute] {
+        self.arena.alloc_from_iter(attrs.iter().map(|a| self.lower_attr(a)))
+    }
+
+    crate fn lower_attr(&mut self, attr: &Attribute) -> Attribute {
+        // Note that we explicitly do not walk the path. Since we don't really
+        // lower attributes (we use the AST version) there is nowhere to keep
+        // the `HirId`s. We don't actually need HIR version of attributes anyway.
+        let kind = match attr.kind {
+            AttrKind::Normal(ref item) => AttrKind::Normal(AttrItem {
+                path: item.path.clone(),
+                args: self.lower_mac_args(&item.args),
+            }),
+            AttrKind::DocComment(comment) => AttrKind::DocComment(comment),
+        };
+
+        Attribute { kind, id: attr.id, style: attr.style, span: attr.span }
+    }
+
+    crate fn lower_mac_args(&mut self, args: &MacArgs) -> MacArgs {
+        match *args {
+            MacArgs::Empty => MacArgs::Empty,
+            MacArgs::Delimited(dspan, delim, ref tokens) => {
+                MacArgs::Delimited(dspan, delim, self.lower_token_stream(tokens.clone()))
+            }
+            MacArgs::Eq(eq_span, ref tokens) => {
+                MacArgs::Eq(eq_span, self.lower_token_stream(tokens.clone()))
+            }
+        }
+    }
+
+    fn lower_token_stream(&mut self, tokens: TokenStream) -> TokenStream {
+        tokens.into_trees().flat_map(|tree| self.lower_token_tree(tree).into_trees()).collect()
+    }
+
+    fn lower_token_tree(&mut self, tree: TokenTree) -> TokenStream {
+        match tree {
+            TokenTree::Token(token) => self.lower_token(token),
+            TokenTree::Delimited(span, delim, tts) => {
+                TokenTree::Delimited(span, delim, self.lower_token_stream(tts)).into()
+            }
+        }
+    }
+
+    fn lower_token(&mut self, token: Token) -> TokenStream {
+        match token.kind {
+            token::Interpolated(nt) => {
+                let tts = (self.nt_to_tokenstream)(&nt, &self.sess.parse_sess, token.span);
+                self.lower_token_stream(tts)
+            }
+            _ => TokenTree::Token(token).into(),
+        }
+    }
+}
 
 fn bad_attr(sess: &Session, span: Span) -> DiagnosticBuilder<'_> {
     struct_span_err!(sess, span, E0452, "malformed lint attribute input")

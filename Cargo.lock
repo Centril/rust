@@ -3807,6 +3807,7 @@ dependencies = [
  "rustc_ast",
  "rustc_data_structures",
  "rustc_index",
+ "rustc_lint_types",
  "rustc_macros",
  "rustc_span",
  "rustc_target",
@@ -3954,6 +3955,7 @@ dependencies = [
  "rustc_ast",
  "rustc_data_structures",
  "rustc_span",
+ "serialize",
 ]
 
 [[package]]
