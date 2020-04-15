@@ -290,25 +290,25 @@ macro_rules! declare_lint {
     );
     ($vis: vis $NAME: ident, $Level: ident, $desc: expr,
      $(@future_incompatible = $fi:expr;)? $($v:ident),*) => (
-        $vis static $NAME: &$crate::lint::Lint = &$crate::lint::Lint {
+        $vis static $NAME: &$crate::Lint = &$crate::Lint {
             name: stringify!($NAME),
-            default_level: $crate::lint::$Level,
+            default_level: $crate::$Level,
             desc: $desc,
             edition_lint_opts: None,
             is_plugin: false,
             $($v: true,)*
             $(future_incompatible: Some($fi),)*
-            ..$crate::lint::Lint::default_fields_for_macro()
+            ..$crate::Lint::default_fields_for_macro()
         };
     );
     ($vis: vis $NAME: ident, $Level: ident, $desc: expr,
      $lint_edition: expr => $edition_level: ident
     ) => (
-        $vis static $NAME: &$crate::lint::Lint = &$crate::lint::Lint {
+        $vis static $NAME: &$crate::Lint = &$crate::Lint {
             name: stringify!($NAME),
-            default_level: $crate::lint::$Level,
+            default_level: $crate::$Level,
             desc: $desc,
-            edition_lint_opts: Some(($lint_edition, $crate::lint::Level::$edition_level)),
+            edition_lint_opts: Some(($lint_edition, $crate::Level::$edition_level)),
             report_in_external_macro: false,
             is_plugin: false,
         };
@@ -333,9 +333,9 @@ macro_rules! declare_tool_lint {
         $external:expr
     ) => (
         $(#[$attr])*
-        $vis static $NAME: &$crate::lint::Lint = &$crate::lint::Lint {
+        $vis static $NAME: &$crate::Lint = &$crate::Lint {
             name: &concat!(stringify!($tool), "::", stringify!($NAME)),
-            default_level: $crate::lint::$Level,
+            default_level: $crate::$Level,
             desc: $desc,
             edition_lint_opts: None,
             report_in_external_macro: $external,
@@ -364,11 +364,11 @@ pub trait LintPass {
 #[macro_export]
 macro_rules! impl_lint_pass {
     ($name:ident => [$($lint:expr),* $(,)?]) => {
-        impl $crate::lint::LintPass for $name {
+        impl $crate::LintPass for $name {
             fn name(&self) -> &'static str { stringify!($name) }
         }
         impl $name {
-            pub fn get_lints() -> $crate::lint::LintArray { $crate::lint_array!($($lint),*) }
+            pub fn get_lints() -> $crate::LintArray { $crate::lint_array!($($lint),*) }
         }
     };
 }

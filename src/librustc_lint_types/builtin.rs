@@ -4,8 +4,7 @@
 //! compiler code, rather than using their own custom pass. Those
 //! lints are all available in `rustc_lint::builtin`.
 
-use crate::lint::FutureIncompatibleInfo;
-use crate::{declare_lint, declare_lint_pass};
+use crate::{declare_lint, declare_lint_pass, FutureIncompatibleInfo};
 use rustc_span::edition::Edition;
 
 declare_lint! {
