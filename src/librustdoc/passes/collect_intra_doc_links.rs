@@ -9,9 +9,9 @@ use rustc_hir::def::{
     PerNS, Res,
 };
 use rustc_hir::def_id::DefId;
+use rustc_lint_types as lint;
 use rustc_middle::ty;
 use rustc_resolve::ParentScope;
-use rustc_session::lint;
 use rustc_span::symbol::Symbol;
 use rustc_span::DUMMY_SP;
 

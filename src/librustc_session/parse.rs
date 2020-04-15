@@ -1,13 +1,13 @@
 //! Contains `ParseSess` which holds state living beyond what one `Parser` might.
 //! It also serves as an input to the parser itself.
 
-use crate::lint::{BufferedEarlyLint, BuiltinLintDiagnostics, Lint, LintId};
 use rustc_ast::node_id::NodeId;
 use rustc_data_structures::fx::{FxHashMap, FxHashSet};
 use rustc_data_structures::sync::{Lock, Lrc, Once};
 use rustc_errors::{emitter::SilentEmitter, ColorConfig, Handler};
 use rustc_errors::{error_code, Applicability, DiagnosticBuilder};
 use rustc_feature::{find_feature_issue, GateIssue, UnstableFeatures};
+use rustc_lint_types::{BufferedEarlyLint, BuiltinLintDiagnostics, Lint, LintId};
 use rustc_span::edition::Edition;
 use rustc_span::hygiene::ExpnId;
 use rustc_span::source_map::{FilePathMapping, SourceMap};

@@ -25,4 +25,5 @@ rustc_feature = { path = "../librustc_feature" }
 rustc_index = { path = "../librustc_index" }
 rustc_session = { path = "../librustc_session" }
 rustc_infer = { path = "../librustc_infer" }
+rustc_lint_types = { path = "../librustc_lint_types" }
 rustc_trait_selection = { path = "../librustc_trait_selection" }

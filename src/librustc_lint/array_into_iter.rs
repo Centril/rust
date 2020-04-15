@@ -1,9 +1,10 @@
 use crate::{LateContext, LateLintPass, LintContext};
 use rustc_errors::Applicability;
 use rustc_hir as hir;
+use rustc_lint_types::{declare_lint, declare_lint_pass, FutureIncompatibleInfo};
+use rustc_middle::bug;
 use rustc_middle::ty;
 use rustc_middle::ty::adjustment::{Adjust, Adjustment};
-use rustc_session::lint::FutureIncompatibleInfo;
 use rustc_span::symbol::sym;
 
 declare_lint! {

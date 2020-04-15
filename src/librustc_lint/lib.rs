@@ -34,11 +34,6 @@
 #![feature(nll)]
 #![recursion_limit = "256"]
 
-#[macro_use]
-extern crate rustc_middle;
-#[macro_use]
-extern crate rustc_session;
-
 mod array_into_iter;
 pub mod builtin;
 mod context;
@@ -56,12 +51,12 @@ mod unused;
 use rustc_ast::ast;
 use rustc_hir as hir;
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::query::Providers;
-use rustc_middle::ty::TyCtxt;
-use rustc_session::lint::builtin::{
+use rustc_lint_types::builtin::{
     BARE_TRAIT_OBJECTS, ELIDED_LIFETIMES_IN_PATHS, EXPLICIT_OUTLIVES_REQUIREMENTS,
     INTRA_DOC_LINK_RESOLUTION_FAILURE, MISSING_DOC_CODE_EXAMPLES, PRIVATE_DOC_TESTS,
 };
+use rustc_middle::ty::query::Providers;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::Span;
 
 use array_into_iter::ArrayIntoIter;
@@ -79,9 +74,9 @@ pub use context::{CheckLintNameResult, EarlyContext, LateContext, LintContext, L
 pub use early::check_ast_crate;
 pub use late::check_crate;
 pub use passes::{EarlyLintPass, LateLintPass};
-pub use rustc_session::lint::Level::{self, *};
-pub use rustc_session::lint::{BufferedEarlyLint, FutureIncompatibleInfo, Lint, LintId};
-pub use rustc_session::lint::{LintArray, LintPass};
+pub use rustc_lint_types::Level::{self, *};
+pub use rustc_lint_types::{BufferedEarlyLint, FutureIncompatibleInfo, Lint, LintId};
+pub use rustc_lint_types::{LintArray, LintPass};
 
 pub fn provide(providers: &mut Providers<'_>) {
     levels::provide(providers);

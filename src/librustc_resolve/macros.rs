@@ -17,9 +17,9 @@ use rustc_expand::expand::{AstFragment, AstFragmentKind, Invocation, InvocationK
 use rustc_feature::is_builtin_attr_name;
 use rustc_hir::def::{self, DefKind, NonMacroAttrKind};
 use rustc_hir::def_id;
+use rustc_lint_types::builtin::UNUSED_MACROS;
 use rustc_middle::middle::stability;
 use rustc_middle::{span_bug, ty};
-use rustc_session::lint::builtin::UNUSED_MACROS;
 use rustc_session::Session;
 use rustc_span::edition::Edition;
 use rustc_span::hygiene::{self, ExpnData, ExpnId, ExpnKind};

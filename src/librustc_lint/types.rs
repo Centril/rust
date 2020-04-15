@@ -9,6 +9,8 @@ use rustc_hir as hir;
 use rustc_hir::def_id::DefId;
 use rustc_hir::{is_range_literal, ExprKind, Node};
 use rustc_index::vec::Idx;
+use rustc_lint_types::{declare_lint, declare_lint_pass, impl_lint_pass};
+use rustc_middle::bug;
 use rustc_middle::mir::interpret::{sign_extend, truncate};
 use rustc_middle::ty::layout::{IntegerExt, SizeSkeleton};
 use rustc_middle::ty::subst::SubstsRef;

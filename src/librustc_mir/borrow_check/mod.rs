@@ -9,6 +9,7 @@ use rustc_hir::{def_id::DefId, HirId, Node};
 use rustc_index::bit_set::BitSet;
 use rustc_index::vec::IndexVec;
 use rustc_infer::infer::{InferCtxt, TyCtxtInferExt};
+use rustc_lint_types::builtin::{MUTABLE_BORROW_RESERVATION_CONFLICT, UNUSED_MUT};
 use rustc_middle::mir::{
     read_only, traversal, Body, BodyAndCache, ClearCrossCrate, Local, Location, Mutability,
     Operand, Place, PlaceElem, PlaceRef, ReadOnlyBodyAndCache,
@@ -18,7 +19,6 @@ use rustc_middle::mir::{Field, ProjectionElem, Promoted, Rvalue, Statement, Stat
 use rustc_middle::mir::{Terminator, TerminatorKind};
 use rustc_middle::ty::query::Providers;
 use rustc_middle::ty::{self, RegionVid, TyCtxt};
-use rustc_session::lint::builtin::{MUTABLE_BORROW_RESERVATION_CONFLICT, UNUSED_MUT};
 use rustc_span::{Span, DUMMY_SP};
 
 use either::Either;

@@ -9,11 +9,11 @@ use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 use rustc_hir::intravisit::{self, NestedVisitorMap, Visitor};
 use rustc_hir::itemlikevisit::ItemLikeVisitor;
 use rustc_hir::{Node, PatKind, TyKind};
+use rustc_lint_types as lint;
 use rustc_middle::hir::map::Map;
 use rustc_middle::middle::codegen_fn_attrs::CodegenFnAttrFlags;
 use rustc_middle::middle::privacy;
 use rustc_middle::ty::{self, DefIdTree, TyCtxt};
-use rustc_session::lint;
 
 use rustc_ast::{ast, attr};
 use rustc_span::symbol::sym;

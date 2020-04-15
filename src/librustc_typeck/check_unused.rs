@@ -4,8 +4,8 @@ use rustc_errors::Applicability;
 use rustc_hir as hir;
 use rustc_hir::def_id::{DefId, DefIdSet, LOCAL_CRATE};
 use rustc_hir::itemlikevisit::ItemLikeVisitor;
+use rustc_lint_types as lint;
 use rustc_middle::ty::TyCtxt;
-use rustc_session::lint;
 use rustc_span::Span;
 
 pub fn check_crate(tcx: TyCtxt<'_>) {

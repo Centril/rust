@@ -109,7 +109,7 @@ use crate::mbe::{KleeneToken, TokenTree};
 use rustc_ast::ast::NodeId;
 use rustc_ast::token::{DelimToken, Token, TokenKind};
 use rustc_data_structures::fx::FxHashMap;
-use rustc_session::lint::builtin::META_VARIABLE_MISUSE;
+use rustc_lint_types::builtin::META_VARIABLE_MISUSE;
 use rustc_session::parse::ParseSess;
 use rustc_span::symbol::kw;
 use rustc_span::{symbol::MacroRulesNormalizedIdent, MultiSpan, Span};

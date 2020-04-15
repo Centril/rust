@@ -31,9 +31,9 @@ use rustc_ast::node_id::NodeMap;
 use rustc_ast::visit::{self, Visitor};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::pluralize;
+use rustc_lint_types::builtin::{MACRO_USE_EXTERN_CRATE, UNUSED_IMPORTS};
+use rustc_lint_types::BuiltinLintDiagnostics;
 use rustc_middle::ty;
-use rustc_session::lint::builtin::{MACRO_USE_EXTERN_CRATE, UNUSED_IMPORTS};
-use rustc_session::lint::BuiltinLintDiagnostics;
 use rustc_span::{MultiSpan, Span, DUMMY_SP};
 
 struct UnusedImport<'a> {

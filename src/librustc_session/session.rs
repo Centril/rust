@@ -3,7 +3,6 @@ use crate::code_stats::CodeStats;
 pub use crate::code_stats::{DataTypeKind, FieldInfo, SizeKind, VariantInfo};
 use crate::config::{self, OutputType, PrintRequest, Sanitizer, SwitchWithOptPath};
 use crate::filesearch;
-use crate::lint;
 use crate::parse::ParseSess;
 use crate::search_paths::{PathKind, SearchPath};
 
@@ -19,6 +18,7 @@ use rustc_errors::annotate_snippet_emitter_writer::AnnotateSnippetEmitterWriter;
 use rustc_errors::emitter::{Emitter, EmitterWriter, HumanReadableErrorType};
 use rustc_errors::json::JsonEmitter;
 use rustc_errors::{Applicability, DiagnosticBuilder, DiagnosticId, ErrorReported};
+use rustc_lint_types::{Level, Lint, LintId};
 use rustc_span::edition::Edition;
 use rustc_span::source_map::{self, FileLoader, MultiSpan, RealFileLoader, SourceMap, Span};
 use rustc_span::SourceFileHashAlgorithm;
@@ -124,7 +124,7 @@ pub struct Session {
     pub jobserver: Client,
 
     /// Cap lint level specified by a driver specifically.
-    pub driver_lint_caps: FxHashMap<lint::LintId, lint::Level>,
+    pub driver_lint_caps: FxHashMap<LintId, Level>,
 
     /// `Span`s of trait methods that weren't found to avoid emitting object safety errors
     pub trait_methods_not_found: Lock<FxHashSet<Span>>,
@@ -178,13 +178,13 @@ enum DiagnosticBuilderMethod {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DiagnosticMessageId {
     ErrorId(u16), // EXXXX error code as integer
-    LintId(lint::LintId),
+    LintId(LintId),
     StabilityId(Option<NonZeroU32>), // issue number
 }
 
-impl From<&'static lint::Lint> for DiagnosticMessageId {
-    fn from(lint: &'static lint::Lint) -> Self {
-        DiagnosticMessageId::LintId(lint::LintId::of(lint))
+impl From<&'static Lint> for DiagnosticMessageId {
+    fn from(lint: &'static Lint) -> Self {
+        DiagnosticMessageId::LintId(LintId::of(lint))
     }
 }
 
@@ -957,7 +957,7 @@ pub fn build_session_with_source_map(
     local_crate_source_file: Option<PathBuf>,
     registry: rustc_errors::registry::Registry,
     diagnostics_output: DiagnosticOutput,
-    driver_lint_caps: FxHashMap<lint::LintId, lint::Level>,
+    driver_lint_caps: FxHashMap<LintId, Level>,
     file_loader: Option<Box<dyn FileLoader + Send + Sync + 'static>>,
 ) -> (Session, Lrc<SourceMap>) {
     // FIXME: This is not general enough to make the warning lint completely override
@@ -967,10 +967,10 @@ pub fn build_session_with_source_map(
         .lint_opts
         .iter()
         .filter(|&&(ref key, _)| *key == "warnings")
-        .map(|&(_, ref level)| *level == lint::Allow)
+        .map(|&(_, ref level)| *level == Level::Allow)
         .last()
         .unwrap_or(false);
-    let cap_lints_allow = sopts.lint_cap.map_or(false, |cap| cap == lint::Allow);
+    let cap_lints_allow = sopts.lint_cap.map_or(false, |cap| cap == Level::Allow);
     let can_emit_warnings = !(warnings_allow || cap_lints_allow);
 
     let write_dest = match diagnostics_output {

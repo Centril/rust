@@ -20,6 +20,7 @@
 //! If you define a new `LateLintPass`, you will also need to add it to the
 //! `late_lint_methods!` invocation in `lib.rs`.
 
+use crate::nonstandard_style::{method_context, MethodLateContext};
 use crate::{EarlyContext, EarlyLintPass, LateContext, LateLintPass, LintContext};
 use rustc_ast::ast::{self, Expr};
 use rustc_ast::attr::{self, HasAttrs};
@@ -35,10 +36,14 @@ use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::DefId;
 use rustc_hir::{GenericParamKind, PatKind};
 use rustc_hir::{HirIdSet, Node};
+use rustc_lint_types::FutureIncompatibleInfo;
+// hardwired lints from librustc_middle
+pub use rustc_lint_types::builtin::*;
+use rustc_lint_types::{declare_lint, declare_lint_pass, impl_lint_pass};
+use rustc_middle::bug;
 use rustc_middle::lint::LintDiagnosticBuilder;
 use rustc_middle::ty::subst::GenericArgKind;
 use rustc_middle::ty::{self, Ty, TyCtxt};
-use rustc_session::lint::FutureIncompatibleInfo;
 use rustc_span::edition::Edition;
 use rustc_span::source_map::Spanned;
 use rustc_span::symbol::{kw, sym, Symbol};
@@ -46,13 +51,8 @@ use rustc_span::{BytePos, Span};
 use rustc_target::abi::VariantIdx;
 use rustc_trait_selection::traits::misc::can_type_implement_copy;
 
-use crate::nonstandard_style::{method_context, MethodLateContext};
-
 use log::debug;
 use std::fmt::Write;
-
-// hardwired lints from librustc_middle
-pub use rustc_session::lint::builtin::*;
 
 declare_lint! {
     WHILE_TRUE,

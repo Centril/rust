@@ -109,6 +109,7 @@ use rustc_infer::infer::error_reporting::TypeAnnotationNeeded::E0282;
 use rustc_infer::infer::type_variable::{TypeVariableOrigin, TypeVariableOriginKind};
 use rustc_infer::infer::unify_key::{ConstVariableOrigin, ConstVariableOriginKind};
 use rustc_infer::infer::{self, InferCtxt, InferOk, InferResult, TyCtxtInferExt};
+use rustc_lint_types as lint;
 use rustc_middle::hir::map::blocks::FnLikeNode;
 use rustc_middle::middle::region;
 use rustc_middle::mir::interpret::ConstValue;
@@ -126,7 +127,6 @@ use rustc_middle::ty::{
     ToPredicate, Ty, TyCtxt, UserType, WithConstness,
 };
 use rustc_session::config::{self, EntryFnType};
-use rustc_session::lint;
 use rustc_session::parse::feature_err;
 use rustc_session::Session;
 use rustc_span::hygiene::DesugaringKind;

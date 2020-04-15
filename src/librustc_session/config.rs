@@ -3,25 +3,22 @@
 
 pub use crate::options::*;
 
-use crate::lint;
+use crate::parse::CrateConfig;
 use crate::search_paths::SearchPath;
 use crate::utils::NativeLibraryKind;
 use crate::{early_error, early_warn, Session};
 
 use rustc_data_structures::fx::FxHashSet;
 use rustc_data_structures::impl_stable_hash_via_hash;
-
-use rustc_target::spec::{Target, TargetTriple};
-
-use crate::parse::CrateConfig;
+use rustc_errors::emitter::HumanReadableErrorType;
+use rustc_errors::{ColorConfig, HandlerFlags};
 use rustc_feature::UnstableFeatures;
+use rustc_lint_types::Level;
 use rustc_span::edition::{Edition, DEFAULT_EDITION, EDITION_NAME_LIST};
 use rustc_span::source_map::{FileName, FilePathMapping};
 use rustc_span::symbol::{sym, Symbol};
 use rustc_span::SourceFileHashAlgorithm;
-
-use rustc_errors::emitter::HumanReadableErrorType;
-use rustc_errors::{ColorConfig, HandlerFlags};
+use rustc_target::spec::{Target, TargetTriple};
 
 use std::collections::btree_map::{
     Iter as BTreeMapIter, Keys as BTreeMapKeysIter, Values as BTreeMapValuesIter,
@@ -1012,13 +1009,13 @@ pub fn rustc_optgroups() -> Vec<RustcOptGroup> {
 pub fn get_cmd_lint_options(
     matches: &getopts::Matches,
     error_format: ErrorOutputType,
-) -> (Vec<(String, lint::Level)>, bool, Option<lint::Level>) {
+) -> (Vec<(String, Level)>, bool, Option<Level>) {
     let mut lint_opts_with_position = vec![];
     let mut describe_lints = false;
 
-    for &level in &[lint::Allow, lint::Warn, lint::Deny, lint::Forbid] {
+    for &level in &[Level::Allow, Level::Warn, Level::Deny, Level::Forbid] {
         for (passed_arg_pos, lint_name) in matches.opt_strs_pos(level.as_str()) {
-            let arg_pos = if let lint::Forbid = level {
+            let arg_pos = if let Level::Forbid = level {
                 // HACK: forbid is always specified last, so it can't be overridden.
                 // FIXME: remove this once <https://github.com/rust-lang/rust/issues/70819> is
                 // fixed and `forbid` works as expected.
@@ -1042,7 +1039,7 @@ pub fn get_cmd_lint_options(
         .collect();
 
     let lint_cap = matches.opt_str("cap-lints").map(|cap| {
-        lint::Level::from_str(&cap)
+        Level::from_str(&cap)
             .unwrap_or_else(|| early_error(error_format, &format!("unknown lint level: `{}`", cap)))
     });
     (lint_opts, describe_lints, lint_cap)
@@ -1988,9 +1985,9 @@ crate mod dep_tracking {
         OutputTypes, Passes, Sanitizer, SourceFileHashAlgorithm, SwitchWithOptPath,
         SymbolManglingVersion,
     };
-    use crate::lint;
     use crate::utils::NativeLibraryKind;
     use rustc_feature::UnstableFeatures;
+    use rustc_lint_types::Level;
     use rustc_span::edition::Edition;
     use rustc_target::spec::{MergeFunctions, PanicStrategy, RelroLevel, TargetTriple};
     use std::collections::hash_map::DefaultHasher;
@@ -2033,7 +2030,7 @@ crate mod dep_tracking {
     impl_dep_tracking_hash_via_hash!(u64);
     impl_dep_tracking_hash_via_hash!(String);
     impl_dep_tracking_hash_via_hash!(PathBuf);
-    impl_dep_tracking_hash_via_hash!(lint::Level);
+    impl_dep_tracking_hash_via_hash!(Level);
     impl_dep_tracking_hash_via_hash!(Option<bool>);
     impl_dep_tracking_hash_via_hash!(Option<usize>);
     impl_dep_tracking_hash_via_hash!(Option<String>);
@@ -2042,7 +2039,7 @@ crate mod dep_tracking {
     impl_dep_tracking_hash_via_hash!(Option<MergeFunctions>);
     impl_dep_tracking_hash_via_hash!(Option<PanicStrategy>);
     impl_dep_tracking_hash_via_hash!(Option<RelroLevel>);
-    impl_dep_tracking_hash_via_hash!(Option<lint::Level>);
+    impl_dep_tracking_hash_via_hash!(Option<Level>);
     impl_dep_tracking_hash_via_hash!(Option<PathBuf>);
     impl_dep_tracking_hash_via_hash!(Option<NativeLibraryKind>);
     impl_dep_tracking_hash_via_hash!(CrateType);
@@ -2069,7 +2066,7 @@ crate mod dep_tracking {
     impl_dep_tracking_hash_for_sortable_vec_of!(String);
     impl_dep_tracking_hash_for_sortable_vec_of!(PathBuf);
     impl_dep_tracking_hash_for_sortable_vec_of!(CrateType);
-    impl_dep_tracking_hash_for_sortable_vec_of!((String, lint::Level));
+    impl_dep_tracking_hash_for_sortable_vec_of!((String, Level));
     impl_dep_tracking_hash_for_sortable_vec_of!((
         String,
         Option<String>,

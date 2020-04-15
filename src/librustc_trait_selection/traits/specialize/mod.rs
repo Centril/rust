@@ -18,11 +18,10 @@ use crate::traits::{self, coherence, FutureCompatOverlapErrorKind, ObligationCau
 use rustc_data_structures::fx::FxHashSet;
 use rustc_errors::struct_span_err;
 use rustc_hir::def_id::DefId;
+use rustc_lint_types::builtin::{COHERENCE_LEAK_CHECK, ORDER_DEPENDENT_TRAIT_OBJECTS};
 use rustc_middle::lint::LintDiagnosticBuilder;
 use rustc_middle::ty::subst::{InternalSubsts, Subst, SubstsRef};
 use rustc_middle::ty::{self, TyCtxt};
-use rustc_session::lint::builtin::COHERENCE_LEAK_CHECK;
-use rustc_session::lint::builtin::ORDER_DEPENDENT_TRAIT_OBJECTS;
 use rustc_span::DUMMY_SP;
 
 use super::util::impl_trait_ref_and_oblig;

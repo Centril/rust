@@ -3,8 +3,8 @@ use crate::context::{EarlyContext, LateContext};
 use rustc_ast::ast;
 use rustc_data_structures::sync;
 use rustc_hir as hir;
-use rustc_session::lint::builtin::HardwiredLints;
-use rustc_session::lint::LintPass;
+use rustc_lint_types::builtin::HardwiredLints;
+use rustc_lint_types::LintPass;
 use rustc_span::Span;
 
 #[macro_export]

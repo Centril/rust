@@ -1,6 +1,7 @@
 use crate::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_ast::ast::{Block, StmtKind};
 use rustc_errors::Applicability;
+use rustc_lint_types::{declare_lint, declare_lint_pass};
 use rustc_span::Span;
 
 declare_lint! {

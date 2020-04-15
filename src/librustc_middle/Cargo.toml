@@ -19,21 +19,22 @@ rustc-rayon = "0.3.0"
 rustc-rayon-core = "0.3.0"
 polonius-engine = "0.12.0"
 rustc_apfloat = { path = "../librustc_apfloat" }
+rustc_ast = { path = "../librustc_ast" }
 rustc_attr = { path = "../librustc_attr" }
 rustc_feature = { path = "../librustc_feature" }
-rustc_hir = { path = "../librustc_hir" }
-rustc_target = { path = "../librustc_target" }
-rustc_macros = { path = "../librustc_macros" }
 rustc_data_structures = { path = "../librustc_data_structures" }
-rustc_query_system = { path = "../librustc_query_system" }
 rustc_errors = { path = "../librustc_errors" }
+rustc_hir = { path = "../librustc_hir" }
 rustc_index = { path = "../librustc_index" }
+rustc_lint_types = { path = "../librustc_lint_types" }
+rustc_macros = { path = "../librustc_macros" }
+rustc_query_system = { path = "../librustc_query_system" }
 rustc_serialize = { path = "../libserialize", package = "serialize" }
-rustc_ast = { path = "../librustc_ast" }
+rustc_session = { path = "../librustc_session" }
 rustc_span = { path = "../librustc_span" }
+rustc_target = { path = "../librustc_target" }
 backtrace = "0.3.40"
 parking_lot = "0.10"
 byteorder = { version = "1.3" }
 smallvec = { version = "1.0", features = ["union", "may_dangle"] }
 measureme = "0.7.1"
-rustc_session = { path = "../librustc_session" }

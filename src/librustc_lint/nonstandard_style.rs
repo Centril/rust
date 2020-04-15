@@ -6,6 +6,7 @@ use rustc_hir as hir;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{GenericParamKind, PatKind};
+use rustc_lint_types::{declare_lint, declare_lint_pass};
 use rustc_middle::ty;
 use rustc_span::symbol::sym;
 use rustc_span::{symbol::Ident, BytePos, Span};

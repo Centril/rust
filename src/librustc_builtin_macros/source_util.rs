@@ -5,8 +5,8 @@ use rustc_ast::tokenstream::TokenStream;
 use rustc_ast_pretty::pprust;
 use rustc_expand::base::{self, *};
 use rustc_expand::module::DirectoryOwnership;
+use rustc_lint_types::builtin::INCOMPLETE_INCLUDE;
 use rustc_parse::{self, new_parser_from_file, parser::Parser};
-use rustc_session::lint::builtin::INCOMPLETE_INCLUDE;
 use rustc_span::symbol::Symbol;
 use rustc_span::{self, Pos, Span};
 

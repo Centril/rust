@@ -15,6 +15,7 @@ use rustc_hir::def_id::{CrateNum, LOCAL_CRATE};
 use rustc_hir::definitions::Definitions;
 use rustc_hir::Crate;
 use rustc_lint::LintStore;
+use rustc_lint_types as lint;
 use rustc_middle::arena::Arena;
 use rustc_middle::dep_graph::DepGraph;
 use rustc_middle::middle;
@@ -30,7 +31,6 @@ use rustc_resolve::{Resolver, ResolverArenas};
 use rustc_session::config::{
     self, CrateType, Input, OutputFilenames, OutputType, PpMode, PpSourceMode,
 };
-use rustc_session::lint;
 use rustc_session::output::{filename_for_input, filename_for_metadata};
 use rustc_session::search_paths::PathKind;
 use rustc_session::Session;

@@ -1,7 +1,5 @@
-use crate::Lint;
 use crate::{EarlyContext, EarlyLintPass, LateContext, LateLintPass, LintContext};
-use rustc_ast::ast;
-use rustc_ast::ast::{ExprKind, StmtKind};
+use rustc_ast::ast::{self, ExprKind, StmtKind};
 use rustc_ast::attr;
 use rustc_ast::util::parser;
 use rustc_ast_pretty::pprust;
@@ -11,11 +9,10 @@ use rustc_feature::{AttributeType, BuiltinAttribute, BUILTIN_ATTRIBUTE_MAP};
 use rustc_hir as hir;
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::DefId;
-use rustc_middle::ty::adjustment;
-use rustc_middle::ty::{self, Ty};
-use rustc_session::lint::builtin::UNUSED_ATTRIBUTES;
-use rustc_span::symbol::Symbol;
-use rustc_span::symbol::{kw, sym};
+use rustc_lint_types::builtin::UNUSED_ATTRIBUTES;
+use rustc_lint_types::{declare_lint, declare_lint_pass, impl_lint_pass, Lint};
+use rustc_middle::ty::{self, adjustment, Ty};
+use rustc_span::symbol::{kw, sym, Symbol};
 use rustc_span::{BytePos, Span};
 
 use log::debug;

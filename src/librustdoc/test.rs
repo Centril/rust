@@ -53,7 +53,7 @@ pub fn run(options: Options) -> i32 {
         cg: options.codegen_options.clone(),
         externs: options.externs.clone(),
         unstable_features: UnstableFeatures::from_environment(),
-        lint_cap: Some(rustc_session::lint::Level::Allow),
+        lint_cap: Some(rustc_lint_types::Level::Allow),
         actually_rustdoc: true,
         debugging_opts: config::DebuggingOptions { ..config::basic_debugging_options() },
         edition: options.edition,

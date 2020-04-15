@@ -2,8 +2,8 @@
 //! process.
 
 use rustc_hir::def_id::{DefId, DefIdSet};
+use rustc_lint_types as lint;
 use rustc_middle::middle::privacy::AccessLevels;
-use rustc_session::lint;
 use rustc_span::{InnerSpan, Span, DUMMY_SP};
 use std::mem;
 use std::ops::Range;

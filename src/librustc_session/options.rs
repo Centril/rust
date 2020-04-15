@@ -1,20 +1,17 @@
 use crate::config::*;
-
 use crate::early_error;
-use crate::lint;
 use crate::search_paths::SearchPath;
 use crate::utils::NativeLibraryKind;
 
+use rustc_feature::UnstableFeatures;
+use rustc_lint_types::Level;
+use rustc_span::edition::Edition;
+use rustc_span::SourceFileHashAlgorithm;
 use rustc_target::spec::TargetTriple;
 use rustc_target::spec::{LinkerFlavor, MergeFunctions, PanicStrategy, RelroLevel};
 
-use rustc_feature::UnstableFeatures;
-use rustc_span::edition::Edition;
-use rustc_span::SourceFileHashAlgorithm;
-
-use std::collections::BTreeMap;
-
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeMap;
 use std::hash::Hasher;
 use std::path::PathBuf;
 use std::str;
@@ -88,8 +85,8 @@ top_level_options!(
         // can influence whether overflow checks are done or not.
         debug_assertions: bool [TRACKED],
         debuginfo: DebugInfo [TRACKED],
-        lint_opts: Vec<(String, lint::Level)> [TRACKED],
-        lint_cap: Option<lint::Level> [TRACKED],
+        lint_opts: Vec<(String, Level)> [TRACKED],
+        lint_cap: Option<Level> [TRACKED],
         describe_lints: bool [UNTRACKED],
         output_types: OutputTypes [TRACKED],
         search_paths: Vec<SearchPath> [UNTRACKED],

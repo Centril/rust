@@ -19,12 +19,12 @@ use rustc_hir::def_id::DefId;
 use rustc_hir::intravisit::{walk_generics, Visitor as _};
 use rustc_hir::lang_items::SizedTraitLangItem;
 use rustc_hir::{Constness, GenericArg, GenericArgs};
+use rustc_lint_types::builtin::{AMBIGUOUS_ASSOCIATED_ITEMS, LATE_BOUND_LIFETIME_ARGUMENTS};
 use rustc_middle::ty::subst::{self, InternalSubsts, Subst, SubstsRef};
 use rustc_middle::ty::{
     self, Const, DefIdTree, ToPredicate, Ty, TyCtxt, TypeFoldable, WithConstness,
 };
 use rustc_middle::ty::{GenericParamDef, GenericParamDefKind};
-use rustc_session::lint::builtin::{AMBIGUOUS_ASSOCIATED_ITEMS, LATE_BOUND_LIFETIME_ARGUMENTS};
 use rustc_session::parse::feature_err;
 use rustc_session::Session;
 use rustc_span::symbol::sym;
