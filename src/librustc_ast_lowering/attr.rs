@@ -69,10 +69,10 @@ fn error_non_word_lint_attr(sess: &Session, li: &ast::NestedMetaItem) {
 
 fn extract_tool_name(sess: &Session, meta_item: &ast::MetaItem) -> Option<Option<Symbol>> {
     match &*meta_item.path.segments {
-        [ast::PathSegment { ident, .. }, ..] if attr::is_known_lint_tool(*ident) => {
+        [ast::PathSegment { ident, .. }, _, ..] if attr::is_known_lint_tool(*ident) => {
             Some(Some(ident.name))
         }
-        [ast::PathSegment { ident, .. }, ..] => {
+        [ast::PathSegment { ident, .. }, _, ..] => {
             struct_span_err!(
                 sess,
                 ident.span,
@@ -86,7 +86,7 @@ fn extract_tool_name(sess: &Session, meta_item: &ast::MetaItem) -> Option<Option
             .emit();
             None
         }
-        [] => Some(None),
+        [_] | [] => Some(None),
     }
 }
 
