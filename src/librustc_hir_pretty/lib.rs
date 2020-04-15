@@ -1237,7 +1237,6 @@ impl<'a> State<'a> {
 
     pub fn print_expr(&mut self, expr: &hir::Expr<'_>) {
         self.maybe_print_comment(expr.span.lo());
-        self.print_outer_attributes(&expr.attrs);
         self.ibox(INDENT_UNIT);
         self.ann.pre(self, AnnNode::Expr(expr));
         match expr.kind {

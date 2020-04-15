@@ -126,18 +126,11 @@ struct ClosureParts<'a> {
     body: hir::BodyId,
     id: hir::HirId,
     span: Span,
-    attrs: &'a [Attribute],
 }
 
 impl<'a> ClosureParts<'a> {
-    fn new(
-        d: &'a FnDecl<'a>,
-        b: hir::BodyId,
-        id: hir::HirId,
-        s: Span,
-        attrs: &'a [Attribute],
-    ) -> Self {
-        ClosureParts { decl: d, body: b, id, span: s, attrs }
+    fn new(d: &'a FnDecl<'a>, b: hir::BodyId, id: hir::HirId, s: Span) -> Self {
+        ClosureParts { decl: d, body: b, id, span: s }
     }
 }
 
@@ -202,7 +195,7 @@ impl<'a> FnLikeNode<'a> {
         let item = |p: ItemFnParts<'a>| -> FnKind<'a> {
             FnKind::ItemFn(p.ident, p.generics, p.header, p.vis, p.attrs)
         };
-        let closure = |c: ClosureParts<'a>| FnKind::Closure(c.attrs);
+        let closure = |_| FnKind::Closure;
         let method = |_, ident: Ident, sig: &'a hir::FnSig<'a>, vis, _, _, attrs| {
             FnKind::Method(ident, sig, vis, attrs)
         };
@@ -252,7 +245,7 @@ impl<'a> FnLikeNode<'a> {
             },
             Node::Expr(e) => match e.kind {
                 hir::ExprKind::Closure(_, ref decl, block, _fn_decl_span, _gen) => {
-                    closure(ClosureParts::new(&decl, block, e.hir_id, e.span, &e.attrs))
+                    closure(ClosureParts::new(&decl, block, e.hir_id, e.span))
                 }
                 _ => bug!("expr FnLikeNode that is not fn-like"),
             },

@@ -818,15 +818,15 @@ impl<'hir> Map<'hir> {
     pub fn attrs(&self, id: HirId) -> &'hir [ast::Attribute] {
         let attrs = match self.find_entry(id).map(|entry| entry.node) {
             Some(Node::Param(a)) => Some(&a.attrs[..]),
-            Some(Node::Local(l)) => Some(&l.attrs[..]),
             Some(Node::Item(i)) => Some(&i.attrs[..]),
             Some(Node::ForeignItem(fi)) => Some(&fi.attrs[..]),
             Some(Node::TraitItem(ref ti)) => Some(&ti.attrs[..]),
             Some(Node::ImplItem(ref ii)) => Some(&ii.attrs[..]),
             Some(Node::Variant(ref v)) => Some(&v.attrs[..]),
             Some(Node::Field(ref f)) => Some(&f.attrs[..]),
-            Some(Node::Expr(ref e)) => Some(&*e.attrs),
-            Some(Node::Stmt(ref s)) => Some(s.kind.attrs()),
+            Some(Node::Local(_)) => unreachable!("Map::attrs, `Local` should be unreachable"),
+            Some(Node::Expr(_)) => unreachable!("Map::attrs, `Expr` should be unreachable"),
+            Some(Node::Stmt(_)) => unreachable!("Map::attrs, `Stmt` should be unreachable"),
             Some(Node::Arm(_)) => unreachable!("Map::attrs, `Arm` should be unreachable"),
             Some(Node::GenericParam(param)) => Some(&param.attrs[..]),
             // Unit/tuple structs/variants take the attributes straight from

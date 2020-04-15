@@ -1592,7 +1592,6 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
                 pat: self.lower_pat(&l.pat),
                 init,
                 span: l.span,
-                attrs: l.attrs.clone(),
                 source: hir::LocalSource::Normal,
             },
             ids,
@@ -2186,7 +2185,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
     /// has no attributes and is not targeted by a `break`.
     fn lower_block_expr(&mut self, b: &Block) -> hir::Expr<'hir> {
         let block = self.lower_block(b, false);
-        self.expr_block(block, AttrVec::new())
+        self.expr_block(block)
     }
 
     fn lower_anon_const(&mut self, c: &AnonConst) -> hir::AnonConst {
@@ -2281,14 +2280,13 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
 
     fn stmt_let_pat(
         &mut self,
-        attrs: AttrVec,
         span: Span,
         init: Option<&'hir hir::Expr<'hir>>,
         pat: &'hir hir::Pat<'hir>,
         source: hir::LocalSource,
     ) -> (hir::Stmt<'hir>, hir::HirId) {
         let hir_id = self.next_id();
-        let local = hir::Local { attrs, hir_id, init, pat, source, span, ty: None };
+        let local = hir::Local { hir_id, init, pat, source, span, ty: None };
         let stmt = self.stmt(span, hir::StmtKind::Local(self.arena.alloc(local)));
         (stmt, hir_id)
     }

@@ -14,7 +14,7 @@ crate fn check<'tcx>(tcx: TyCtxt<'tcx>, body: &Body<'tcx>, def_id: DefId) {
     let hir_id = tcx.hir().as_local_hir_id(def_id).unwrap();
 
     if let Some(fn_like_node) = FnLikeNode::from_node(tcx.hir().get(hir_id)) {
-        if let FnKind::Closure(_) = fn_like_node.kind() {
+        if let FnKind::Closure = fn_like_node.kind() {
             // closures can't recur, so they don't matter.
             return;
         }

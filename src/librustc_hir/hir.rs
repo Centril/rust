@@ -4,7 +4,7 @@ crate use crate::hir_id::HirId;
 use crate::itemlikevisit;
 
 use rustc_ast::ast::{self, CrateSugar, Ident, LlvmAsmDialect, Name};
-use rustc_ast::ast::{AttrVec, Attribute, FloatTy, IntTy, Label, LitKind, StrStyle, UintTy};
+use rustc_ast::ast::{Attribute, FloatTy, IntTy, Label, LitKind, StrStyle, UintTy};
 pub use rustc_ast::ast::{BorrowKind, ImplPolarity, IsAuto};
 pub use rustc_ast::ast::{CaptureBy, Movability, Mutability};
 use rustc_ast::node_id::NodeMap;
@@ -1119,16 +1119,6 @@ pub enum StmtKind<'hir> {
     Semi(&'hir Expr<'hir>),
 }
 
-impl StmtKind<'hir> {
-    pub fn attrs(&self) -> &'hir [Attribute] {
-        match *self {
-            StmtKind::Local(ref l) => &l.attrs,
-            StmtKind::Item(_) => &[],
-            StmtKind::Expr(ref e) | StmtKind::Semi(ref e) => &e.attrs,
-        }
-    }
-}
-
 /// Represents a `let` statement (i.e., `let <pat>:<ty> = <expr>;`).
 #[derive(RustcEncodable, RustcDecodable, Debug, HashStable_Generic)]
 pub struct Local<'hir> {
@@ -1139,7 +1129,6 @@ pub struct Local<'hir> {
     pub init: Option<&'hir Expr<'hir>>,
     pub hir_id: HirId,
     pub span: Span,
-    pub attrs: AttrVec,
     /// Can be `ForLoopDesugar` if the `let` statement is part of a `for` loop
     /// desugaring. Otherwise will be `Normal`.
     pub source: LocalSource,
@@ -1321,13 +1310,12 @@ pub struct AnonConst {
 pub struct Expr<'hir> {
     pub hir_id: HirId,
     pub kind: ExprKind<'hir>,
-    pub attrs: AttrVec,
     pub span: Span,
 }
 
 // `Expr` is used a lot. Make sure it doesn't unintentionally get bigger.
 #[cfg(target_arch = "x86_64")]
-rustc_data_structures::static_assert_size!(Expr<'static>, 64);
+rustc_data_structures::static_assert_size!(Expr<'static>, 56);
 
 impl Expr<'_> {
     pub fn precedence(&self) -> ExprPrecedence {

@@ -825,7 +825,7 @@ impl<'hir> LoweringContext<'_, 'hir> {
 
     /// Construct `ExprKind::Err` for the given `span`.
     crate fn expr_err(&mut self, span: Span) -> hir::Expr<'hir> {
-        self.expr(span, hir::ExprKind::Err, AttrVec::new())
+        self.expr(span, hir::ExprKind::Err)
     }
 
     fn lower_impl_item(&mut self, i: &AssocItem) -> hir::ImplItem<'hir> {
@@ -1133,7 +1133,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     // `HirId`s are densely assigned.
                     let expr = this.expr_ident(desugared_span, ident, new_parameter_id);
                     let (stmt, local_hir_id) = this.stmt_let_pat(
-                        stmt_attrs,
                         desugared_span,
                         Some(expr),
                         parameter.pat,
@@ -1164,7 +1163,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     );
                     let move_expr = this.expr_ident(desugared_span, ident, new_parameter_id);
                     let (move_stmt, _) = this.stmt_let_pat(
-                        AttrVec::new(),
                         desugared_span,
                         Some(move_expr),
                         move_pat,
@@ -1175,7 +1173,6 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     // parameter's pattern so that `HirId`s are densely assigned.
                     let pattern_expr = this.expr_ident(desugared_span, ident, move_id);
                     let (pattern_stmt, local_hir_id) = this.stmt_let_pat(
-                        stmt_attrs,
                         desugared_span,
                         Some(pattern_expr),
                         parameter.pat,
@@ -1204,11 +1201,8 @@ impl<'hir> LoweringContext<'_, 'hir> {
                     // Transform into `drop-temps { <user-body> }`, an expression:
                     let desugared_span =
                         this.mark_span_with_reason(DesugaringKind::Async, user_body.span, None);
-                    let user_body = this.expr_drop_temps(
-                        desugared_span,
-                        this.arena.alloc(user_body),
-                        AttrVec::new(),
-                    );
+                    let user_body =
+                        this.expr_drop_temps(desugared_span, this.arena.alloc(user_body));
 
                     // As noted above, create the final block like
                     //
@@ -1225,14 +1219,11 @@ impl<'hir> LoweringContext<'_, 'hir> {
                         Some(user_body),
                     );
 
-                    this.expr_block(body, AttrVec::new())
+                    this.expr_block(body)
                 },
             );
 
-            (
-                this.arena.alloc_from_iter(parameters),
-                this.expr(body_span, async_expr, AttrVec::new()),
-            )
+            (this.arena.alloc_from_iter(parameters), this.expr(body_span, async_expr))
         })
     }
 

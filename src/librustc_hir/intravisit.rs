@@ -98,7 +98,7 @@ pub enum FnKind<'a> {
     Method(Ident, &'a FnSig<'a>, Option<&'a Visibility<'a>>, &'a [Attribute]),
 
     /// `|x, y| {}`
-    Closure(&'a [Attribute]),
+    Closure,
 }
 
 impl<'a> FnKind<'a> {
@@ -106,7 +106,7 @@ impl<'a> FnKind<'a> {
         match *self {
             FnKind::ItemFn(.., attrs) => attrs,
             FnKind::Method(.., attrs) => attrs,
-            FnKind::Closure(attrs) => attrs,
+            FnKind::Closure => unreachable!("FnKind::attrs, Closure should be unreachable"),
         }
     }
 
@@ -114,7 +114,7 @@ impl<'a> FnKind<'a> {
         match *self {
             FnKind::ItemFn(_, _, ref header, _, _) => Some(header),
             FnKind::Method(_, ref sig, _, _) => Some(&sig.header),
-            FnKind::Closure(_) => None,
+            FnKind::Closure => None,
         }
     }
 }
@@ -489,7 +489,6 @@ pub fn walk_local<'v, V: Visitor<'v>>(visitor: &mut V, local: &'v Local<'v>) {
     // Intentionally visiting the expr first - the initialization expr
     // dominates the local's definition.
     walk_list!(visitor, visit_expr, &local.init);
-    walk_list!(visitor, visit_attribute, local.attrs.iter());
     visitor.visit_id(local.hir_id);
     visitor.visit_pat(&local.pat);
     walk_list!(visitor, visit_ty, &local.ty);
@@ -908,7 +907,7 @@ pub fn walk_fn_kind<'v, V: Visitor<'v>>(visitor: &mut V, function_kind: FnKind<'
         FnKind::ItemFn(_, generics, ..) => {
             visitor.visit_generics(generics);
         }
-        FnKind::Method(..) | FnKind::Closure(_) => {}
+        FnKind::Method(..) | FnKind::Closure => {}
     }
 }
 
@@ -1063,7 +1062,6 @@ pub fn walk_anon_const<'v, V: Visitor<'v>>(visitor: &mut V, constant: &'v AnonCo
 
 pub fn walk_expr<'v, V: Visitor<'v>>(visitor: &mut V, expression: &'v Expr<'v>) {
     visitor.visit_id(expression.hir_id);
-    walk_list!(visitor, visit_attribute, expression.attrs.iter());
     match expression.kind {
         ExprKind::Box(ref subexpression) => visitor.visit_expr(subexpression),
         ExprKind::Array(subexpressions) => {
@@ -1117,7 +1115,7 @@ pub fn walk_expr<'v, V: Visitor<'v>>(visitor: &mut V, expression: &'v Expr<'v>) 
         }
         ExprKind::Closure(_, ref function_declaration, body, _fn_decl_span, _gen) => visitor
             .visit_fn(
-                FnKind::Closure(&expression.attrs),
+                FnKind::Closure,
                 function_declaration,
                 body,
                 expression.span,
